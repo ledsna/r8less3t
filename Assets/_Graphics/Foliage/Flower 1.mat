@@ -27,6 +27,7 @@ Material:
   m_ValidKeywords:
   - LIGHTMAP_SHADOW_MIXING
   - SHADOWS_SHADOWMASK
+  - _ALPHATEST_ON
   - _SPECULAR_SETUP
   - _USE_TEXTURE_COLOR
   m_InvalidKeywords:
