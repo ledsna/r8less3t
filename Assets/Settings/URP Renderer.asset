@@ -178,17 +178,19 @@ MonoBehaviour:
     probeSamplingDebugTexture: {fileID: 0}
     probeVolumeBlendStatesCS: {fileID: 0}
   m_RendererFeatures:
-  - {fileID: -1289544202295596309}
   - {fileID: -1395698828817776804}
   - {fileID: 626952295790532232}
   - {fileID: -320374988667725092}
   - {fileID: -6849550071879620218}
   - {fileID: -7484968008522892050}
   - {fileID: -3658006204519524491}
-  m_RendererFeatureMap: ebaa015c619e1aee5c3fe3564f7ba1ec88d6b591ca61b308dc5a8a2da5cc8dfb86295d068082f1a0ee7cd4d8400d2098755770e9bc263ccd
+  m_RendererFeatureMap: 5c3fe3564f7ba1ec88d6b591ca61b308dc5a8a2da5cc8dfb86295d068082f1a0ee7cd4d8400d2098755770e9bc263ccd
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 0}
-  m_AssetVersion: 2
+  m_AssetVersion: 3
+  m_PrepassLayerMask:
+    serializedVersion: 2
+    m_Bits: 201
   m_OpaqueLayerMask:
     serializedVersion: 2
     m_Bits: 201
