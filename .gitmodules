@@ -1,0 +1,3 @@
+[submodule "Packages/NaughtyAttributes"]
+	path = Packages/NaughtyAttributes
+	url = git@github.com:dbrizov/NaughtyAttributes.git
