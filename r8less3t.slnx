@@ -1,0 +1,21 @@
+﻿<Solution>
+  <Project Path="NaughtyAttributes.Core.csproj" />
+  <Project Path="BetterHierarchy.csproj" />
+  <Project Path="NaughtyAttributes.Editor.csproj" />
+  <Project Path="VolumetricFog.Core.csproj" />
+  <Project Path="WorleyNoiseEdiitor.Editor.csproj" />
+  <Project Path="Project.Editor.csproj" />
+  <Project Path="NaughtyAttributes.Test.csproj" />
+  <Project Path="Project.csproj" />
+  <Project Path="Feature.LitToon.Editor.csproj" />
+  <Project Path="ParrelSync.csproj" />
+  <Project Path="Project.Shared.Runtime.csproj" />
+  <Project Path="BetterHierarchyDemoScripts.csproj" />
+  <Project Path="Feature.GodRays.Core.csproj" />
+  <Project Path="Feature.Grass.Editor.csproj" />
+  <Project Path="ASoliman.Utils.ClipboardPlus.csproj" />
+  <Project Path="Feature.Grass.csproj" />
+  <Project Path="Project.Shared.Editor.csproj" />
+  <Project Path="Features.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+</Solution>
