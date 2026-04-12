@@ -78,16 +78,26 @@ public class WriteRendererID : MonoBehaviour
             smr.SetShaderUserValue(id);
     }
 
-    void Update()
-    {
 #if UNITY_EDITOR
-        // In the editor, if you change the transform or hierarchy, we want to ensure
-        // it updates immediately if it hasn't fired OnEnable
-        if (!Application.isPlaying && transform.hasChanged)
+    void OnValidate()
+    {
+        if (isActiveAndEnabled)
         {
             OnEnable();
-            transform.hasChanged = false;
         }
-#endif
     }
+#endif
+
+    //     void Update()
+    //     {
+    // #if UNITY_EDITOR
+    //         // In the editor, if you change the transform or hierarchy, we want to ensure
+    //         // it updates immediately if it hasn't fired OnEnable
+    //         if (!Application.isPlaying && transform.hasChanged)
+    //         {
+    //             OnEnable();
+    //             transform.hasChanged = false;
+    //         }
+    // #endif
+    //     }
 }
