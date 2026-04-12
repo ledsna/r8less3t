@@ -226,6 +226,10 @@ namespace Grass.Core
                 // Copy only specific properties from root material
                 CopySelectiveProperties(renderData.material, _rootMeshMaterial);
 
+                // Assign a globally unique Base ID for this grass patch
+                uint patchBaseID = global::WriteRendererID.GetNextID();
+                renderData.materialPropertyBlock.SetFloat("_InstancedBaseID", patchBaseID);
+
                 if (_rootMeshMaterial != null)
                 {
                     if (_rootMeshMaterial.IsKeywordEnabled("_REFLECTION_PROBE_BLENDING"))

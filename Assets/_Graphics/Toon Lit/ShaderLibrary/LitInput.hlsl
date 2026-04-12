@@ -40,6 +40,7 @@ half _Metallic;
 half _BumpScale;
 half _OcclusionStrength;
 half _Surface;
+half _SubmeshID;
 CBUFFER_END
 
 // NOTE: Do not ifdef the properties for dots instancing, but ifdef the actual usage.
@@ -80,6 +81,7 @@ UNITY_DOTS_INSTANCED_PROP(float , _ReflectionSteps)
     UNITY_DOTS_INSTANCED_PROP(float , _BumpScale)
     UNITY_DOTS_INSTANCED_PROP(float , _OcclusionStrength)
     UNITY_DOTS_INSTANCED_PROP(float , _Surface)
+    UNITY_DOTS_INSTANCED_PROP(float , _SubmeshID)
 UNITY_DOTS_INSTANCING_END(MaterialPropertyMetadata)
 
 // Here, we want to avoid overriding a property like e.g. _BaseColor with something like this:
@@ -124,6 +126,7 @@ static float  unity_DOTS_Sampled_Metallic;
 static float  unity_DOTS_Sampled_BumpScale;
 static float  unity_DOTS_Sampled_OcclusionStrength;
 static float  unity_DOTS_Sampled_Surface;
+static float  unity_DOTS_Sampled_SubmeshID;
 
 void SetupDOTSLitMaterialPropertyCaches()
 {
@@ -158,6 +161,7 @@ void SetupDOTSLitMaterialPropertyCaches()
     unity_DOTS_Sampled_BumpScale            = UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float , _BumpScale);
     unity_DOTS_Sampled_OcclusionStrength    = UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float , _OcclusionStrength);
     unity_DOTS_Sampled_Surface              = UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float , _Surface);
+    unity_DOTS_Sampled_SubmeshID            = UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float , _SubmeshID);
 }
 
 #undef UNITY_SETUP_DOTS_MATERIAL_PROPERTY_CACHES
@@ -194,6 +198,7 @@ void SetupDOTSLitMaterialPropertyCaches()
 #define _BumpScale              unity_DOTS_Sampled_BumpScale
 #define _OcclusionStrength      unity_DOTS_Sampled_OcclusionStrength
 #define _Surface                unity_DOTS_Sampled_Surface
+#define _SubmeshID              unity_DOTS_Sampled_SubmeshID
 
 #endif
 

@@ -4,7 +4,7 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
 
-TEXTURE2D(_ObjectIDTexture);
+TEXTURE2D(_CameraObjectIDTexture);
 
 SamplerState point_clamp_sampler;
 float2 _PixelResolution;
@@ -64,24 +64,24 @@ void GetNormalDiffSum(half3 normal, half2 neighbours[4], out half normal_diff_su
     }
 }
 
-half GetObjectID(half2 uv)
+float2 GetObjectID(float2 uv)
 {
-    return SAMPLE_TEXTURE2D(_ObjectIDTexture, point_clamp_sampler, uv).r;
+    // Use Unity's built-in Point Clamp sampler to guarantee no filtering across edges
+    return SAMPLE_TEXTURE2D(_CameraObjectIDTexture, sampler_PointClamp, uv).rg;
 }
 
-void GetObjectIDDiffSum(half id, half depth, half2 neighbours[4], out half id_diff_sum)
+void GetObjectIDDiffSum(float2 id, float depth, half2 neighbours[4], out float id_diff_sum)
 {
     id_diff_sum = 0;
     [unroll]
     for (int k = 0; k < 4; ++k)
     {
-        half nID    = GetObjectID(neighbours[k]);
-        half nDepth = GetDepth(neighbours[k]);
+        float2 nID    = GetObjectID(neighbours[k]);
+        float nDepth = GetDepth(neighbours[k]);
 
-        // Only count if: different object AND we are the closer-to-camera pixel
-        // (foreground gets the outline, background stays clean)
-        half isDifferent = step(0.004, abs(nID - id));
-        half isForeground = step(depth, nDepth); // 1 if we're closer or equal
+        // distance() works for float2. If the ID or SubmeshID differs by more than 0.1, it's an edge.
+        float isDifferent = step(0.1, distance(nID, id));
+        float isForeground = step(depth, nDepth); 
         id_diff_sum += isDifferent * isForeground;
     }
 }
@@ -111,7 +111,7 @@ half OutlineType(half2 uv)
     // Priority: External edges first (depth OR object ID), then Internal edges (normals)
     half outlineType = 0.0h;
     
-    if (( depth_edge > 0.0h) && _External)
+    if (id_edge > 0.0 && _External)
         outlineType = 1.0h;
     else if (normal_edge > 0.0h && (depth_diff_sum >= 0.0h && _Convex || depth_diff_sum < 0.0h && _Concave))
         outlineType = 2.0h;

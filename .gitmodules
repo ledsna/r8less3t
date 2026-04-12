@@ -1,3 +1,6 @@
 [submodule "Packages/NaughtyAttributes"]
 	path = Packages/NaughtyAttributes
 	url = git@github.com:dbrizov/NaughtyAttributes.git
+[submodule "Packages/URP-submodule"]
+	path = Packages/URP-submodule
+	url = git@github.com:ledsna/URP-submodule.git

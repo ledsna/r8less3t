@@ -95,11 +95,11 @@ void DepthNormalsFragment(
 #ifdef _WRITE_RENDERING_LAYERS
     , out float4 outRenderingLayers : SV_Target1
     #ifdef _WRITE_OBJECT_ID
-    , out half4 outObjectID : SV_Target2
+    , out float2 outObjectID : SV_Target2
     #endif
 #else
     #ifdef _WRITE_OBJECT_ID
-    , out half4 outObjectID : SV_Target1
+    , out float2 outObjectID : SV_Target1
     #endif
 #endif
 )
@@ -119,9 +119,9 @@ void DepthNormalsFragment(
 
     #if defined(_GBUFFER_NORMALS_OCT)
         float3 normalWS = normalize(input.normalWS);
-        float2 octNormalWS = PackNormalOctQuadEncode(normalWS);           // values between [-1, +1], must use fp32 on some platforms
-        float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);   // values between [ 0,  1]
-        half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);      // values between [ 0,  1]
+        float2 octNormalWS = PackNormalOctQuadEncode(normalWS);
+        float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);
+        half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);
         outNormalWS = half4(packedNormalWS, 0.0);
     #else
         #if defined(_PARALLAXMAP)
@@ -137,7 +137,7 @@ void DepthNormalsFragment(
         InitializeStandardLitSurfaceData(uv, surfaceData);
 
         #if defined(_NORMALMAP) || defined(_DETAIL)
-            float sgn = input.tangentWS.w;      // should be either +1 or -1
+            float sgn = input.tangentWS.w;
             float3 bitangent = sgn * cross(input.normalWS.xyz, input.tangentWS.xyz);
             float3 normalWS = TransformTangentToWorld(surfaceData.normalTS, half3x3(input.tangentWS.xyz, bitangent.xyz, input.normalWS.xyz));
         #else
@@ -153,22 +153,9 @@ void DepthNormalsFragment(
     #endif
 
     #ifdef _WRITE_OBJECT_ID
-        // Hash: position (Teschner primes) + material properties.
-        // Adjacent objects differ by position; same-position objects differ by material.
-        float3 pos = unity_ObjectToWorld._m03_m13_m23;
-        int3 p = int3(floor(pos * 1000.0 + 0.5)); // millimeter grid
-        uint h = uint(p.x) * 73856093u ^ uint(p.y) * 19349663u ^ uint(p.z) * 83492791u;
-        // Mix in material properties
-        h ^= asuint(_BaseColor.r) * 0x2e2be6abu;
-        h ^= asuint(_BaseColor.g) * 0x119de1f3u;
-        h ^= asuint(_BaseColor.b) * 0x16a6b03du;
-        h ^= asuint(_Smoothness)  * 0x27d4eb2du;
-        h ^= asuint(_Metallic)    * 0x3c79a0b5u;
-        // Wang finalization
-        h = ((h >> 16u) ^ h) * 0x45d9f3bu;
-        h = ((h >> 16u) ^ h) * 0x45d9f3bu;
-        h = (h >> 16u) ^ h;
-        outObjectID = half4((h & 0xFFFFu) / 65535.0, 0, 0, 0);
+        // .x = per-object ID from WriteRendererID.cs (via SetShaderUserValue -> UnityPerDraw)
+        // .y = per-material submesh ID (via _SubmeshID in UnityPerMaterial)
+        outObjectID = float2(unity_RendererUserValue, _SubmeshID);
     #endif
 }
 

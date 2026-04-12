@@ -79,6 +79,9 @@ Shader "Ledsna/Lit"
         [HideInInspector] _BlendModePreserveSpecular("_BlendModePreserveSpecular", Float) = 1.0
         [HideInInspector] _AlphaToMask("__alphaToMask", Float) = 0.0
 
+        // Object ID (for multi-submesh differentiation in the DepthNormals prepass)
+        _SubmeshID("Submesh ID", Float) = 0
+
         // Editmode props
         _QueueOffset("Queue offset", Float) = 0.0
         
@@ -299,7 +302,8 @@ Shader "Ledsna/Lit"
             // -------------------------------------
             // Universal Pipeline keywords
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
-
+            #pragma multi_compile_fragment _ _WRITE_OBJECT_ID
+            #pragma target 4.5 _WRITE_OBJECT_ID
 
             //--------------------------------------
             // GPU Instancing

@@ -34,9 +34,9 @@ Material:
     - _SunSize: 0.04
     - _SunSizeConvergence: 5
     m_Colors:
-    - _BelowHorizonColor: {r: 0.4788, g: 0.5777182, b: 0.9, a: 1}
+    - _BelowHorizonColor: {r: 0.3607843, g: 0.48605666, b: 0.9019608, a: 1}
     - _CosmosColor: {r: 0.16368002, g: 0.24639994, b: 0.66, a: 1}
-    - _FogColor: {r: 0.47843137, g: 0.5764706, b: 0.9019608, a: 1}
+    - _FogColor: {r: 0.3607843, g: 0.48605666, b: 0.9019608, a: 1}
     - _GroundColor: {r: 0.3072804, g: 0.34319627, b: 0.42700002, a: 1}
     - _SkyTint: {r: 0.3679245, g: 0.3679245, b: 0.3679245, a: 1}
   m_BuildTextureStacks: []

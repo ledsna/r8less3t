@@ -61,6 +61,8 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
         private MaterialProperty _ShadowSteps;
         private MaterialProperty _ReflectionSteps;
 
+        private MaterialProperty _SubmeshID;
+
         public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
             this.materialEditor = materialEditor;
@@ -111,6 +113,8 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
             _DistanceSteps = FindProperty("_DistanceSteps", properties);
             _ShadowSteps = FindProperty("_ShadowSteps", properties);
             _ReflectionSteps = FindProperty("_ReflectionSteps", properties);
+            
+            _SubmeshID = FindProperty("_SubmeshID", properties);
 
             DrawCustomProperties();
             DrawDefaultProperties();
@@ -209,6 +213,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
             showOutlineHeader = EditorGUILayout.BeginFoldoutHeaderGroup(showOutlineHeader, "Outline Settings");
             if (showOutlineHeader)
             {
+                materialEditor.ShaderProperty(_SubmeshID, "Submesh Object ID");
                 materialEditor.ShaderProperty(_OutlineColour, "Outline Colour");
                 materialEditor.ShaderProperty(_OutlineStrength, "Intensity");
                 materialEditor.ShaderProperty(_DebugOn, "Debug View");

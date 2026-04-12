@@ -17,6 +17,9 @@ float _WindGustStrength;
 // Flower Properties (need to match ForwardPass)
 float _FlowerCameraNudge;
 
+// Object ID for instanced rendering (set via MaterialPropertyBlock from GrassHolder)
+float _InstancedBaseID;
+
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -51,6 +54,7 @@ struct Attributes
     float4 position     : POSITION;
     float2 texcoord     : TEXCOORD0;
     float3 normal       : NORMAL;
+    uint   instanceID   : SV_InstanceID;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -62,6 +66,7 @@ struct Varyings
     float3 positionWS   : TEXCOORD1; // For texture array sampling
     float3 normalWS     : TEXCOORD2;
     nointerpolation int textureIndex : TEXCOORD3;
+    nointerpolation uint instanceID  : TEXCOORD4;
     float4 positionCS   : SV_POSITION;
     UNITY_VERTEX_INPUT_INSTANCE_ID
     UNITY_VERTEX_OUTPUT_STEREO
@@ -118,6 +123,7 @@ Varyings DepthNormalsVertex(Attributes input)
     // For now, let's just use the terrain normal passed from Setup()
     output.normalWS = normalWS; 
     output.textureIndex = textureIndex;
+    output.instanceID = input.instanceID;
 
     return output;
 }
@@ -125,6 +131,9 @@ Varyings DepthNormalsVertex(Attributes input)
 void DepthNormalsFragment(
     Varyings input
     , out half4 outNormalWS : SV_Target0
+#ifdef _WRITE_OBJECT_ID
+    , out float2 outObjectID : SV_Target1
+#endif
 )
 {
     UNITY_SETUP_INSTANCE_ID(input);
@@ -141,6 +150,12 @@ void DepthNormalsFragment(
     // A   = Smoothness
     // We add 2.0 to smoothness to flag this pixel as a billboard for the Water shader
     outNormalWS = half4(positionWS, _Smoothness + 2.0);
+
+    #ifdef _WRITE_OBJECT_ID
+        // .x = per-patch base ID (from GrassHolder via MaterialPropertyBlock)
+        // .y = per-instance ID within the patch (from SV_InstanceID)
+        outObjectID = float2(_InstancedBaseID, input.instanceID);
+    #endif
 }
 
 #endif

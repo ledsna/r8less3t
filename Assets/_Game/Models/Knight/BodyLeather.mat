@@ -137,6 +137,7 @@ Material:
     - _SpecularThreshold: -0.02
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
+    - _SubmeshID: 5
     - _Surface: 0
     - _ValueSaturationCelShader: 0
     - _ValueSteps: 10

@@ -108,6 +108,9 @@ Shader "Ledsna/LitInstancedBillboard"
         [HideInInspector] _BlendModePreserveSpecular("_BlendModePreserveSpecular", Float) = 0.0
         [HideInInspector] _AlphaToMask("__alphaToMask", Float) = 0.0
 
+        // Object ID (for multi-submesh differentiation in the DepthNormals prepass)
+        _SubmeshID("Submesh ID", Float) = 0
+
         // Editmode props
         _QueueOffset("Queue offset", Float) = 0.0
 
@@ -295,6 +298,8 @@ Shader "Ledsna/LitInstancedBillboard"
             // Material Keywords
             #pragma shader_feature_local _ALPHATEST_ON
             #pragma shader_feature_local _USE_TEXTURE_COLOR
+            #pragma multi_compile_fragment _ _WRITE_OBJECT_ID
+            #pragma target 4.5 _WRITE_OBJECT_ID
 
             //--------------------------------------
             // GPU Instancing
