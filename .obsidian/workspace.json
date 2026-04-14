@@ -1,0 +1,201 @@
+{
+  "main": {
+    "id": "404268ec3e81768c",
+    "type": "split",
+    "children": [
+      {
+        "id": "ac5c60956a70c2f4",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "9fb6c0485bcbfdaa",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Packages/URP-submodule/FORK_CHANGES.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "FORK_CHANGES"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "6effe7b24a58d2df",
+    "type": "split",
+    "children": [
+      {
+        "id": "5462aba2f7a95aaf",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d93f2fe29687761d",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "08b316d9bb7d978d",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "55489a955b16aac1",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "ec4d75352c93e71d",
+    "type": "split",
+    "children": [
+      {
+        "id": "0a94ba3c13fb8f78",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "6405330d773e0138",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Packages/URP-submodule/FORK_CHANGES.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for FORK_CHANGES"
+            }
+          },
+          {
+            "id": "0e35277b29c6ca02",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Packages/URP-submodule/FORK_CHANGES.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from FORK_CHANGES"
+            }
+          },
+          {
+            "id": "2ca99ac105950471",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "e408644c21fd6efe",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "0c4fe428964c678e",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Packages/URP-submodule/FORK_CHANGES.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of FORK_CHANGES"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "9fb6c0485bcbfdaa",
+  "lastOpenFiles": [
+    "Temp/UnityTempFile-264bd8b9cd0ea6c1f818e58eb0d2d4fd",
+    "Temp/ADB-Refreshd3c4c3c38e76f5c7cb241de7a554e054",
+    "Library/Search/propertyDatabase.db_b0bc145f1e8642ebaf59ab5a37e5bfde_temp",
+    "Temp/UnityTempFile-89fa144d24e945e7d8f6d85a31ff78ad",
+    "Library/ShaderCache.db-journal",
+    "Library/Artifacts/e7/e702f0d10b7dfbf5c88353b8000db9ae",
+    "Library/TempArtifacts/Primary/22de1c32521394d37aa1414108b9e013",
+    "Library/Artifacts/a4/a4bed0efc3942da6926012b97de7882b",
+    "Library/TempArtifacts/Primary/224a8b017a309f848904c8324db45623",
+    "Temp/ADB-Refreshb323b1a0b41884e87a72f405fa911749",
+    "Temp/UnityTempFile-05e444739ff5406e68e1278bff8a8a6f",
+    "Packages/URP-submodule/CHANGELOG.md"
+  ]
+}

@@ -73,6 +73,7 @@ Shader "Ledsna/WaterTess"
 
             // Removed: _FORWARD_PLUS (not used)
             #include_with_pragmas "Assets/_Graphics/Toon Lit/Quantize.hlsl"
+            #pragma multi_compile_fragment _ _WRITE_PIXEL_PERFECT_DETAIL
             #include "WaterForwardPass.hlsl"
             ENDHLSL
         }

@@ -127,6 +127,7 @@ Material:
     - _SpecularStep: 0
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
+    - _SubmeshID: 0
     - _Surface: 0
     - _UVSec: 0
     - _WorkflowMode: 1

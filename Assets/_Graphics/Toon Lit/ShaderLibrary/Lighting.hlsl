@@ -52,50 +52,66 @@ float Unity_Dither(float In, float4 ScreenPosition)
     return In - DITHER_THRESHOLDS[index];
 }
 
+half GetIsophote(half NdotL, half3 lightDirectionWS, half3 normalWS)
+{
+    half result = 0;
+
+    float bandPhase = NdotL * (_DiffuseSteps - 0.5);
+    float2 grad = float2(ddx(bandPhase), ddy(bandPhase));
+    
+    float pixelDist = 1 + (bandPhase - 0.5 - ceil(bandPhase - 0.5)) / max(abs(grad.x), abs(grad.y));
+
+    uint ringIndex = uint(floor(abs(pixelDist)));
+
+    // Mark last pixel of the lit band (pixelDist > 0) instead of first pixel of shadow band
+    result = (ringIndex % 2 == 1 && ringIndex <= _DistanceSteps && pixelDist < 0) ? 1.0 : 0.0;
+
+    // Angle Envelope
+    float alignment = abs(dot(normalize(TransformWorldToHClipDir(lightDirectionWS)), normalize(grad)));
+    result *= smoothstep(0.75, 0.98, alignment);
+    
+    // Depth Fade Out
+    result *= smoothstep(0.4, 0.98, sqrt(saturate(NdotL)));
+    return result;
+}
+
 half3 LightingPhysicallyBased(BRDFData brdfData,
     half3 lightColor, half3 lightDirectionWS, float distanceAttenuation, float shadowAttenuation,
     half3 normalWS, half3 viewDirectionWS, half2 normalizedScreenSpaceUV,
-    bool specularHighlightsOff, float3 positionWS)
+    bool specularHighlightsOff, float3 positionWS, inout half isPixelPerfectDetail)
 {
     half NdotL = dot(normalWS, lightDirectionWS);
-    half s = saturate(_SpecularStep + HALF_MIN);
+    half s = saturate(2 * _SpecularStep + HALF_MIN);
     half steps = _DiffuseSpecularCelShader ? _DiffuseSteps : -1;
+
+    float camDist = length(positionWS - _WorldSpaceCameraPos);
+    half distFade = saturate((camDist - 50.0) / 150.0); // linear 0→1 from 50 to 100 units
+
+    if (steps != -1)
+    {
+        steps = lerp(steps, 30, distFade);
+    }
+    s = lerp(s, HALF_MIN, distFade * 5);
     
     float isophoteRings = 0;
     float dither = Unity_Dither(0.5, float4(normalizedScreenSpaceUV, 0, 0));
 
-    {
-        float bandPhase = NdotL * (_DiffuseSteps - 0.5);
-        float2 grad = float2(ddx(bandPhase), ddy(bandPhase));
-        
-        // Ensure distance is measured strictly downhill from the upper boundary
-        float pixelDist = (bandPhase - (ceil(bandPhase - 0.5) + 0.5)) / max(abs(grad.x), abs(grad.y));
+    half isIsophote = GetIsophote(NdotL, lightDirectionWS, normalWS);
 
-        uint ringIndex = uint(floor(abs(pixelDist)));
-
-        // Output +1 for odd rings stretching into the shadow side, 0 otherwise
-        isophoteRings = (ringIndex % 2 == 1 && ringIndex <= _DistanceSteps && pixelDist < 0) ? 1.0 : 0.0;
-
-        // Angle Envelope
-        float alignment = abs(dot(normalize(TransformWorldToHClipDir(lightDirectionWS)), normalize(grad)));
-        isophoteRings *= smoothstep(0.75, 0.98, alignment);
-        
-        // Depth Fade Out
-        isophoteRings *= smoothstep(0.4, 0.98, sqrt(saturate(NdotL)));
-    }
+    isPixelPerfectDetail = max(isPixelPerfectDetail, isIsophote > 0.0 ? 1.0 : 0.0);
 
     // half qNdotL = Quantize(steps, NdotL + dither / 2 / steps);
     half qNdotL = Quantize(steps, NdotL);
-    qNdotL += isophoteRings / (steps - 1);
+    qNdotL += isIsophote / (steps - 1);
 
-    // qNdotL += ;// * pow(dot(viewDirectionWS, normalWS), 3);
-    
-
-    // Extending the bands to 1 px outward
-    // half band = Quantize(steps, NdotL + fwidth(NdotL));
-    // half baseBand = Quantize(steps, NdotL);
-    // bool isContour = fwidth(band) > 0;
-    // half qNdotL = lerp(baseBand, band, isContour);
+    // Mark band transition pixels (last pixel of the lit band)
+    if (steps > 0)
+    {
+        half baseBand = Quantize(steps, NdotL);
+        half bandLow = Quantize(steps, NdotL + fwidth(NdotL));
+        if (bandLow != baseBand)
+            isPixelPerfectDetail = 1.0;
+    }
 
     half3 diffuse = lightColor * saturate(qNdotL) *
         Quantize(_ShadowSteps, shadowAttenuation) * distanceAttenuation;
@@ -106,9 +122,9 @@ half3 LightingPhysicallyBased(BRDFData brdfData,
     {
         half specComponent = max(DirectBRDFSpecular(brdfData, normalWS, lightDirectionWS, viewDirectionWS), HALF_MIN);
 
-        half qSpec =  exp(round( (log(specComponent) + dither / 4 * _SpecularStep) / s) * s);
+        half qSpec =  exp(round(log(specComponent) / s + dither / 2) * s);
         // half s3 =  exp(floor( (log(specComponent) + brdfData.roughness * dither * _SpecularStep) / s) * s);
-        
+
         brdf += brdfData.specular * qSpec;
     }
 #endif // _SPECULARHIGHLIGHTS_OFF
@@ -205,9 +221,7 @@ half4 CalculateFinalColor(LightingData lightingData, half outlineType, half alph
 {
     half3 finalColor = CalculateLightingColor(lightingData, outlineType);
 
-    // Encode outline presence in alpha temporarily for the pixel perfect mask output
-    // The forward pass will extract this before writing proper alpha
-    return half4(finalColor, outlineType > 0 ? 0.0 : 1.0);
+    return half4(finalColor, alpha);
 }
 
 //.
@@ -231,7 +245,7 @@ LightingData CreateLightingData(InputData inputData, SurfaceData surfaceData)
 ////////////////////////////////////////////////////////////////////////////////
 /// PBR lighting...
 ////////////////////////////////////////////////////////////////////////////////
-half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
+half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData, out half isPixelPerfectDetail)
 {
     #if defined(_SPECULARHIGHLIGHTS_OFF)
         bool specularHighlightsOff = true;
@@ -272,14 +286,15 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
     lightingData.giColor = directSpecular * aoFactor.indirectAmbientOcclusion;
 
     half outlineType = OutlineType(inputData.normalizedScreenSpaceUV);
-    
+    isPixelPerfectDetail = outlineType > 0 ? 1.0 : 0.0;
+
 #ifdef _LIGHT_LAYERS
     if (IsMatchingLightLayer(mainLight.layerMask, meshRenderingLayers))
 #endif
     {
         lightingData.mainLightColor = LightingPhysicallyBased(brdfData, mainLight.color,
             mainLight.direction, mainLight.distanceAttenuation, mainLight.shadowAttenuation,
-            inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV, specularHighlightsOff, inputData.positionWS);
+            inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV, specularHighlightsOff, inputData.positionWS, isPixelPerfectDetail);
     }
 
     #if defined(_ADDITIONAL_LIGHTS)
@@ -298,7 +313,7 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
         {
             lightingData.additionalLightsColor += LightingPhysicallyBased(brdfData, light.color, light.direction,
                 light.distanceAttenuation, light.shadowAttenuation, inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV,
-                specularHighlightsOff, inputData.positionWS);
+                specularHighlightsOff, inputData.positionWS, isPixelPerfectDetail);
         }
     }
     #endif
@@ -312,26 +327,27 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
         {
             lightingData.additionalLightsColor += LightingPhysicallyBased(brdfData, light.color, light.direction,
                 light.distanceAttenuation, light.shadowAttenuation, inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV,
-                specularHighlightsOff, inputData.positionWS);
+                specularHighlightsOff, inputData.positionWS, isPixelPerfectDetail);
         }
     LIGHT_LOOP_END
     #endif
+
+
+    // if (SAMPLE_TEXTURE2D(_CameraNormalsTexture, point_clamp_sampler, inputData.normalizedScreenSpaceUV).a >= 2)
+    {
+        half3 reflectVector = reflect(-inputData.viewDirectionWS, inputData.normalWS);
+        half NoV = dot(inputData.normalWS, inputData.viewDirectionWS);
+
+        reflectVector = QuantizeDirectionSpherical(reflectVector, _ReflectionSteps, _ReflectionSteps);
+        half fresnelTerm = Pow4(1.0 - saturate(Quantize(_FresnelSteps, NoV + Unity_Dither(0.5, float4(inputData.normalizedScreenSpaceUV, 0, 0)) / 4 / _FresnelSteps)));
+
+        half3 indirectSpecular = GlossyEnvironmentReflection(reflectVector, inputData.positionWS, brdfData.perceptualRoughness, 1.0h, inputData.normalizedScreenSpaceUV);
+
+        // lightingData.giColor += indirectSpecular * EnvironmentBRDFSpecular(brdfData, fresnelTerm) * aoFactor.indirectAmbientOcclusion;
+        lightingData.giColor += (indirectSpecular * EnvironmentBRDFSpecular(brdfData, fresnelTerm) * aoFactor.indirectAmbientOcclusion) / (outlineType == 0 ? 1 : 4);
+
+    }
     
-    // if (outlineType == 0)
-        {
-            half3 reflectVector = reflect(-inputData.viewDirectionWS, inputData.normalWS);
-            half NoV = dot(inputData.normalWS, inputData.viewDirectionWS);
-
-            reflectVector = QuantizeDirectionSpherical(reflectVector, _ReflectionSteps, _ReflectionSteps);
-            half fresnelTerm = Pow4(1.0 - saturate(Quantize(_FresnelSteps, 
-                NoV + Unity_Dither(.5, float4(inputData.normalizedScreenSpaceUV, 0, 0)) / 2 / (_FresnelSteps - .5))));
-
-            half3 indirectSpecular = GlossyEnvironmentReflection(reflectVector, inputData.positionWS, brdfData.perceptualRoughness, 1.0h, inputData.normalizedScreenSpaceUV);
-
-            // lightingData.giColor += indirectSpecular * EnvironmentBRDFSpecular(brdfData, fresnelTerm) * aoFactor.indirectAmbientOcclusion;
-            lightingData.giColor += (indirectSpecular * EnvironmentBRDFSpecular(brdfData, fresnelTerm) * aoFactor.indirectAmbientOcclusion) / (outlineType == 0 ? 1 : 4);
-
-        }
 
 #if REAL_IS_HALF
     // Clamp any half.inf+ to HALF_MAX
@@ -339,5 +355,6 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
 #else
     return CalculateFinalColor(lightingData, outlineType, surfaceData.alpha);
 #endif
+
 }
 #endif

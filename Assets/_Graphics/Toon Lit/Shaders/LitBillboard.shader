@@ -207,6 +207,8 @@ Shader "Ledsna/LitInstancedBillboard"
             #pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
             #pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
             #include_with_pragmas "Assets/_Graphics/Toon Lit/Quantize.hlsl"
+            #pragma multi_compile_fragment _ _WRITE_PIXEL_PERFECT_DETAIL
+            // #pragma target 4.5 _WRITE_PIXEL_PERFECT_DETAIL
 
 
             //--------------------------------------
@@ -287,7 +289,7 @@ Shader "Ledsna/LitInstancedBillboard"
             Cull[_Cull]
 
             HLSLPROGRAM
-            #pragma target 3.5
+            #pragma target 2.0
 
             // -------------------------------------
             // Shader Stages
@@ -299,7 +301,7 @@ Shader "Ledsna/LitInstancedBillboard"
             #pragma shader_feature_local _ALPHATEST_ON
             #pragma shader_feature_local _USE_TEXTURE_COLOR
             #pragma multi_compile_fragment _ _WRITE_OBJECT_ID
-            #pragma target 4.5 _WRITE_OBJECT_ID
+            // #pragma target 4.5 _WRITE_OBJECT_ID
 
             //--------------------------------------
             // GPU Instancing

@@ -54,7 +54,6 @@ struct Attributes
     float4 position     : POSITION;
     float2 texcoord     : TEXCOORD0;
     float3 normal       : NORMAL;
-    uint   instanceID   : SV_InstanceID;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -63,10 +62,10 @@ struct Varyings
     #if defined(_ALPHATEST_ON)
         float2 uv       : TEXCOORD0;
     #endif
-    float3 positionWS   : TEXCOORD1; // For texture array sampling
+    float3 positionWS   : TEXCOORD1;
     float3 normalWS     : TEXCOORD2;
     nointerpolation int textureIndex : TEXCOORD3;
-    nointerpolation uint instanceID  : TEXCOORD4;
+    nointerpolation uint customInstanceID : TEXCOORD4;
     float4 positionCS   : SV_POSITION;
     UNITY_VERTEX_INPUT_INSTANCE_ID
     UNITY_VERTEX_OUTPUT_STEREO
@@ -123,7 +122,11 @@ Varyings DepthNormalsVertex(Attributes input)
     // For now, let's just use the terrain normal passed from Setup()
     output.normalWS = normalWS; 
     output.textureIndex = textureIndex;
-    output.instanceID = input.instanceID;
+    #if UNITY_ANY_INSTANCING_ENABLED
+        output.customInstanceID = (uint)UNITY_GET_INSTANCE_ID(input);
+    #else
+        output.customInstanceID = 0;
+    #endif
 
     return output;
 }
@@ -136,7 +139,6 @@ void DepthNormalsFragment(
 #endif
 )
 {
-    UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
     #if defined(_ALPHATEST_ON)
@@ -154,7 +156,7 @@ void DepthNormalsFragment(
     #ifdef _WRITE_OBJECT_ID
         // .x = per-patch base ID (from GrassHolder via MaterialPropertyBlock)
         // .y = per-instance ID within the patch (from SV_InstanceID)
-        outObjectID = float2(_InstancedBaseID, input.instanceID);
+        outObjectID = float2(0, 0);//_InstancedBaseID, input.customInstanceID);
     #endif
 }
 

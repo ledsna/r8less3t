@@ -26,7 +26,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b18c26f67524f14cbffa779699933bf, type: 3}
   m_Name: SuperSamplingResolveFeature
   m_EditorClassIdentifier: Features::SuperSamplingResolve.SuperSamplingResolveFeature
-  m_Active: 0
+  m_Active: 1
   resolveShader: {fileID: 4800000, guid: 9488b6224d3601041a3808e1e9014a6a, type: 3}
 --- !u!114 &-6849550071879620218
 MonoBehaviour:
@@ -103,7 +103,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0a09e9b48a42946a78b866638db51d87, type: 3}
   m_Name: SSRPrepassFeature
   m_EditorClassIdentifier: Features::Ledsna.SSR.SSRPrepassFeature
-  m_Active: 0
+  m_Active: 1
   settings:
     waterLayer:
       serializedVersion: 2
@@ -225,7 +225,7 @@ MonoBehaviour:
   m_Name: Debug Texture
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.FullScreenPassRendererFeature
   m_Active: 0
-  injectionPoint: 600
+  injectionPoint: 450
   fetchColorBuffer: 1
   requirements: 0
   passMaterial: {fileID: -876546973899608171, guid: f11d7510c8c7b47f29d2859ea2c7332f,

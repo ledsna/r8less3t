@@ -65,18 +65,21 @@ float3 ApplyWildGrassNormal(float3 originalNormal, float3 worldPos)
 {
     float hash = Hash(worldPos);
     
-    // Check if this grass instance is "wild" based on chance
     if (hash < _WildGrassChance)
     {
-        // Generate a random direction based on world position
         float3 randomDir = RandomDirection(hash * 1000.0);
-        
-        // Blend between original normal and random direction
         float3 perturbedNormal = lerp(originalNormal, randomDir, _WildNormalStrength);
         return normalize(perturbedNormal);
     }
     
     return originalNormal;
+}
+
+float3 PerturbGrassNormal(float3 originalNormal, float3 worldPos)
+{
+    float h = Hash(worldPos);
+    float3 randomDir = RandomDirection(h * 7.0);
+    return normalize(lerp(originalNormal, randomDir, 0.08));
 }
 
 #ifndef UNIVERSAL_FORWARD_LIT_PASS_INCLUDED
@@ -322,7 +325,7 @@ Varyings LitPassVertex(Attributes input)
     
     // Apply wild grass normal perturbation (use grass root position for deterministic randomness)
     // normalWS is already in world space from GrassData (from the underlying mesh)
-    float3 perturbedNormal = isWildGrass ? ApplyWildGrassNormal(normalWS, positionWS) : normalWS;
+    float3 perturbedNormal = isWildGrass ? ApplyWildGrassNormal(normalWS, positionWS) : PerturbGrassNormal(normalWS, positionWS);
     
     // For tangents, we still need to process the billboard's own tangent from OS
     VertexNormalInputs normalInput = GetVertexNormalInputs(input.normalOS, input.tangentOS);
@@ -367,12 +370,12 @@ void LitPassFragment(
     Varyings input, out half4 outColor : SV_Target0
 #ifdef _WRITE_RENDERING_LAYERS
     , out float4 outRenderingLayers : SV_Target1
-    #ifdef _WRITE_PIXEL_PERFECT
-    , out half4 outPixelPerfect : SV_Target2
+    #ifdef _WRITE_PIXEL_PERFECT_DETAIL
+    , out half4 outPixelPerfectDetail : SV_Target2
     #endif
 #else
-    #ifdef _WRITE_PIXEL_PERFECT
-    , out half4 outPixelPerfect : SV_Target1
+    #ifdef _WRITE_PIXEL_PERFECT_DETAIL
+    , out half4 outPixelPerfectDetail : SV_Target1
     #endif
 #endif
 )
@@ -416,7 +419,8 @@ void LitPassFragment(
     // inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(TransformWorldToHClip(positionWS));
     SETUP_DEBUG_TEXTURE_DATA(inputData, input.uv);
 
-    half4 color = UniversalFragmentPBR(inputData, surfaceData);
+    half isPixelPerfectDetail;
+    half4 color = UniversalFragmentPBR(inputData, surfaceData, isPixelPerfectDetail);
 
     half3 colour = color.rgb;
  
@@ -425,17 +429,15 @@ void LitPassFragment(
     colour = MixFog(colour, inputData.fogCoord);
 
     outColor.rgb = colour;
-    // Extract pixel-perfect flag then restore proper alpha
-    half importanceFlag = color.a; // outline flag from CalculateFinalColor (0 = outline, 1 = no outline)
-    outColor.a = 1.0; // opaque billboard
+    outColor.a = 1.0;
 
 #ifdef _WRITE_RENDERING_LAYERS
     uint renderingLayers = GetMeshRenderingLayer();
     outRenderingLayers = float4(EncodeMeshRenderingLayer(renderingLayers), 0, 0, 0);
 #endif
 
-#ifdef _WRITE_PIXEL_PERFECT
-    outPixelPerfect = half4(importanceFlag < 0.5 ? 1.0 : 0.0, 0, 0, 0);
+#ifdef _WRITE_PIXEL_PERFECT_DETAIL
+    outPixelPerfectDetail = half4(isPixelPerfectDetail, 0, 0, 0);
 #endif
 }
 

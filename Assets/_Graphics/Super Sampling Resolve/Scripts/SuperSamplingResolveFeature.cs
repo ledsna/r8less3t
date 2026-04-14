@@ -6,11 +6,6 @@ using UnityEngine.Experimental.Rendering;
 
 namespace SuperSamplingResolve
 {
-    /// <summary>
-    /// Resolves supersampled color, depth and normals to native resolution
-    /// after transparents but before any post-processing features (volumetric fog, bloom, etc.),
-    /// using the pixel-perfect mask for edge-aware color downsample.
-    /// </summary>
     public class SuperSamplingResolveFeature : ScriptableRendererFeature
     {
         [SerializeField] private Shader resolveShader;
@@ -21,7 +16,6 @@ namespace SuperSamplingResolve
         public override void Create()
         {
             resolvePass = new SuperSamplingResolvePass();
-            // Run right after transparents (500+1=501), before any BeforeRenderingPostProcessing (550) features
             resolvePass.renderPassEvent = RenderPassEvent.AfterRenderingTransparents + 1;
         }
 
@@ -32,15 +26,12 @@ namespace SuperSamplingResolve
 
             var cameraData = renderingData.cameraData;
 
-            // Only apply when render scale > 1 (super sampling is active)
             if (cameraData.renderScale <= 1.0f)
                 return;
 
-            // Skip non-game cameras
             if (cameraData.cameraType != CameraType.Game)
                 return;
 
-            // No downsampling needed at 1x
             if (Mathf.RoundToInt(cameraData.renderScale) <= 1)
                 return;
 
@@ -68,14 +59,12 @@ namespace SuperSamplingResolve
         private Material material;
 
         private static readonly int SuperSamplingScaleID = Shader.PropertyToID("_SuperSamplingScale");
-        private static readonly int CameraDepthTextureID = Shader.PropertyToID("_CameraDepthTexture");
-        private static readonly int CameraNormalsTextureID = Shader.PropertyToID("_CameraNormalsTexture");
-        private static readonly int PixelPerfectTextureID = Shader.PropertyToID("_PixelPerfectTexture");
 
         private class PassData
         {
             internal Material material;
-            internal bool resolveNormals;
+            internal TextureHandle srcColorTex;
+            internal TextureHandle pixelPerfectDetailTex;
         }
 
         public void Setup(Material material, float renderScale)
@@ -103,9 +92,6 @@ namespace SuperSamplingResolve
             int outW = cam.pixelWidth;
             int outH = cam.pixelHeight;
 
-            // --- Create 1x output textures ---
-
-            // Color (same format as supersampled source)
             var srcDesc = srcColor.GetDescriptor(renderGraph);
             var colorDesc = new TextureDesc(outW, outH, false, false)
             {
@@ -117,77 +103,36 @@ namespace SuperSamplingResolve
             };
             var resolvedColor = renderGraph.CreateTexture(colorDesc);
 
-            // Depth (R32_SFloat to store raw depth values)
-            var depthDesc = new TextureDesc(outW, outH, false, false)
-            {
-                format = GraphicsFormat.R32_SFloat,
-                depthBufferBits = 0,
-                clearBuffer = false,
-                msaaSamples = MSAASamples.None,
-                name = "_ResolvedDepth"
-            };
-            var resolvedDepth = renderGraph.CreateTexture(depthDesc);
-
-            // Normals (only if a normals texture exists)
-            bool hasNormals = resourceData.cameraNormalsTexture.IsValid();
-            TextureHandle resolvedNormals = TextureHandle.nullHandle;
-            if (hasNormals)
-            {
-                var srcNormalsDesc = resourceData.cameraNormalsTexture.GetDescriptor(renderGraph);
-                var normalsDesc = new TextureDesc(outW, outH, false, false)
-                {
-                    format = srcNormalsDesc.format,
-                    depthBufferBits = 0,
-                    clearBuffer = false,
-                    msaaSamples = MSAASamples.None,
-                    name = "_ResolvedNormals"
-                };
-                resolvedNormals = renderGraph.CreateTexture(normalsDesc);
-            }
-
-            // --- Record the resolve pass ---
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("Super Sampling Resolve", out var passData))
             {
                 passData.material = material;
-                passData.resolveNormals = hasNormals;
 
-                // Input: supersampled color
+                passData.srcColorTex = srcColor;
                 builder.UseTexture(srcColor, AccessFlags.Read);
 
-                // Input: supersampled depth (global)
-                builder.UseGlobalTexture(CameraDepthTextureID);
+                builder.UseGlobalTexture(Shader.PropertyToID("_CameraDepthTexture"));
+                builder.UseGlobalTexture(Shader.PropertyToID("_CameraObjectIDTexture"));
 
-                // Input: pixel-perfect mask (global)
-                builder.UseGlobalTexture(PixelPerfectTextureID);
+                var pixelPerfectDetailTex = resourceData.pixelPerfectDetailTexture;
+                if (pixelPerfectDetailTex.IsValid())
+                {
+                    passData.pixelPerfectDetailTex = pixelPerfectDetailTex;
+                    builder.UseTexture(pixelPerfectDetailTex, AccessFlags.Read);
+                }
 
-                // Input: supersampled normals (global, optional)
-                if (hasNormals)
-                    builder.UseGlobalTexture(CameraNormalsTextureID);
+                builder.SetRenderAttachment(resolvedColor, 0, AccessFlags.Write);
 
-                // MRT outputs
-                builder.SetRenderAttachment(resolvedColor, 0);
-                builder.SetRenderAttachment(resolvedDepth, 1);
-                if (hasNormals)
-                    builder.SetRenderAttachment(resolvedNormals, 2);
-
-                // Override global texture bindings after this pass so post-processing
-                // reads the resolved 1x textures instead of the supersampled ones
-                builder.SetGlobalTextureAfterPass(resolvedDepth, CameraDepthTextureID);
-                if (hasNormals)
-                    builder.SetGlobalTextureAfterPass(resolvedNormals, CameraNormalsTextureID);
+                builder.AllowGlobalStateModification(true);
 
                 builder.SetRenderFunc<PassData>(static (data, context) =>
                 {
-                    if (data.resolveNormals)
-                        data.material.EnableKeyword("_RESOLVE_NORMALS");
-                    else
-                        data.material.DisableKeyword("_RESOLVE_NORMALS");
+                    if (data.pixelPerfectDetailTex.IsValid())
+                        context.cmd.SetGlobalTexture(Shader.PropertyToID("_PixelPerfectDetailTexture"), data.pixelPerfectDetailTex);
 
-                    Blitter.BlitTexture(context.cmd, new Vector4(1, 1, 0, 0), data.material, 0);
+                    Blitter.BlitTexture(context.cmd, data.srcColorTex, Vector2.one, data.material, 0);
                 });
             }
 
-            // Replace the active camera color so post-processing reads our 1x result
             resourceData.cameraColor = resolvedColor;
         }
     }

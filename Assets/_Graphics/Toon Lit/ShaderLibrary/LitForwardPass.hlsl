@@ -223,12 +223,12 @@ void LitPassFragment(
     , out half4 outColor : SV_Target0
 #ifdef _WRITE_RENDERING_LAYERS
     , out float4 outRenderingLayers : SV_Target1
-    #ifdef _WRITE_PIXEL_PERFECT
-    , out half4 outPixelPerfect : SV_Target2
+    #ifdef _WRITE_PIXEL_PERFECT_DETAIL
+    , out half4 outPixelPerfectDetail : SV_Target2
     #endif
 #else
-    #ifdef _WRITE_PIXEL_PERFECT
-    , out half4 outPixelPerfect : SV_Target1
+    #ifdef _WRITE_PIXEL_PERFECT_DETAIL
+    , out half4 outPixelPerfectDetail : SV_Target1
     #endif
 #endif
 , FRONT_FACE_TYPE isFrontFace : FRONT_FACE_SEMANTIC
@@ -269,13 +269,10 @@ void LitPassFragment(
 
     InitializeBakedGIData(input, inputData);
 
-    half4 color = UniversalFragmentPBR(inputData, surfaceData);
+    half isPixelPerfectDetail;
+    half4 color = UniversalFragmentPBR(inputData, surfaceData, isPixelPerfectDetail);
     
     color.rgb = MixFog(color.rgb, inputData.fogCoord);
-
-    // Capture outline flag before OutputAlpha overwrites it
-    // CalculateFinalColor encodes: 0 = outline, 1 = no outline
-    half outlineFlag = color.a;
 
     color.a = OutputAlpha(surfaceData.alpha, IsSurfaceTypeTransparent(_Surface));
     
@@ -286,9 +283,8 @@ void LitPassFragment(
     outRenderingLayers = float4(EncodeMeshRenderingLayer(renderingLayers), 0, 0, 0);
 #endif
 
-#ifdef _WRITE_PIXEL_PERFECT
-    // Write 1 where pixel is important (outlines), 0 otherwise
-    outPixelPerfect = half4(outlineFlag < 0.5 ? 1.0 : 0.0, 0, 0, 0);
+#ifdef _WRITE_PIXEL_PERFECT_DETAIL
+    outPixelPerfectDetail = half4(isPixelPerfectDetail, 0, 0, 0);
 #endif
 }
 

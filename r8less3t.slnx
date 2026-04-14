@@ -1,9 +1,15 @@
 ﻿<Solution>
   <Project Path="NaughtyAttributes.Core.csproj" />
+  <Project Path="Unity.RenderPipelines.Universal.2D.Runtime.csproj" />
+  <Project Path="Unity.RenderPipelines.Universal.Editor.csproj" />
+  <Project Path="PPv2URPConverters.csproj" />
   <Project Path="BetterHierarchy.csproj" />
+  <Project Path="Unity.RenderPipelines.Universal.Editor.Tests.csproj" />
+  <Project Path="Unity.RenderPipelines.Universal.Runtime.csproj" />
   <Project Path="NaughtyAttributes.Editor.csproj" />
   <Project Path="VolumetricFog.Core.csproj" />
   <Project Path="WorleyNoiseEdiitor.Editor.csproj" />
+  <Project Path="Unity.RenderPipelines.Universal.2D.Editor.Overrides.csproj" />
   <Project Path="Project.Editor.csproj" />
   <Project Path="NaughtyAttributes.Test.csproj" />
   <Project Path="Project.csproj" />
@@ -15,7 +21,11 @@
   <Project Path="Feature.Grass.Editor.csproj" />
   <Project Path="ASoliman.Utils.ClipboardPlus.csproj" />
   <Project Path="Feature.Grass.csproj" />
+  <Project Path="Unity.RenderPipelines.Universal.Runtime.Tests.csproj" />
   <Project Path="Project.Shared.Editor.csproj" />
   <Project Path="Features.csproj" />
+  <Project Path="Unity.RenderPipeline.Universal.ShaderLibrary.csproj" />
+  <Project Path="Feature.PixelArt.csproj" />
+  <Project Path="Unity.RenderPipelines.Universal.Shaders.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
 </Solution>

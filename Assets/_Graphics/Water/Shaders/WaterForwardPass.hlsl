@@ -593,12 +593,12 @@ void Frag(Varyings i
     , out half4 outColor : SV_Target0
 #ifdef _WRITE_RENDERING_LAYERS
     , out float4 outRenderingLayers : SV_Target1
-    #ifdef _WRITE_PIXEL_PERFECT
-    , out half4 outPixelPerfect : SV_Target2
+    #ifdef _WRITE_PIXEL_PERFECT_DETAIL
+    , out half4 outPixelPerfectDetail : SV_Target2
     #endif
 #else
-    #ifdef _WRITE_PIXEL_PERFECT
-    , out half4 outPixelPerfect : SV_Target1
+    #ifdef _WRITE_PIXEL_PERFECT_DETAIL
+    , out half4 outPixelPerfectDetail : SV_Target1
     #endif
 #endif
 )
@@ -703,8 +703,8 @@ void Frag(Varyings i
     outRenderingLayers = float4(EncodeMeshRenderingLayer(renderingLayers), 0, 0, 0);
 #endif
 
-#ifdef _WRITE_PIXEL_PERFECT
-    // Foam highlights are important pixels for super sampling resolve
-    outPixelPerfect = half4(foamMask > 0 ? 1.0 : 0.0, 0, 0, 0);
+    half isPixelPerfectDetail = foamMask > 0 ? 1.0 : 0.0;
+#ifdef _WRITE_PIXEL_PERFECT_DETAIL
+    outPixelPerfectDetail = half4(isPixelPerfectDetail, 0, 0, 0);
 #endif
 }

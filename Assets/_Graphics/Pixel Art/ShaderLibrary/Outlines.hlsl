@@ -9,7 +9,6 @@ TEXTURE2D(_CameraObjectIDTexture);
 SamplerState point_clamp_sampler;
 float2 _PixelResolution;
 
-static const half3 NORMAL_EDGE_BIAS = half3(0.57735, 0.57735, 0.57735); // normalize(1,1,1)
 
 half GetDepth(half2 uv)
 {
@@ -53,12 +52,18 @@ void GetNormalDiffSum(half3 normal, half2 neighbours[4], out half normal_diff_su
 {
     normal_diff_sum = 0;
 
+    // The face more aligned with the camera gets the outline
+    half3 camForward = UNITY_MATRIX_V[2].xyz;
+    half facingness = dot(normal, camForward);
+
     [unroll]
     for (int j = 0; j < 4; ++j)
     {
         half3 neighbour_normal = GetNormal(neighbours[j]);
         half3 normal_diff = normal - neighbour_normal;
-        half normal_diff_weight = smoothstep(-.01, .01, dot(normal_diff, NORMAL_EDGE_BIAS));
+
+        half nFacingness = dot(neighbour_normal, camForward);
+        half normal_diff_weight = step(nFacingness, facingness);
 
         normal_diff_sum += dot(normal_diff, normal_diff) * normal_diff_weight;
     }
@@ -111,7 +116,7 @@ half OutlineType(half2 uv)
     // Priority: External edges first (depth OR object ID), then Internal edges (normals)
     half outlineType = 0.0h;
     
-    if (id_edge > 0.0 && _External)
+    if ((id_edge > 0.0 || depth_edge > 0.0) && _External)
         outlineType = 1.0h;
     else if (normal_edge > 0.0h && (depth_diff_sum >= 0.0h && _Convex || depth_diff_sum < 0.0h && _Concave))
         outlineType = 2.0h;

@@ -187,7 +187,7 @@ Material:
     - _NormalsThreshold: 0.035
     - _NumLayersCount: 1
     - _OcclusionStrength: 1
-    - _OutlineStrength: 1
+    - _OutlineStrength: 0
     - _Outside: 0
     - _Parallax: 0.005
     - _Preview: 0

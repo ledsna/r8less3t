@@ -53,6 +53,18 @@ void Setup()
     unity_ObjectToWorld._m00_m11_m22 = float3(_Scale, _Scale, _Scale);
     unity_ObjectToWorld = mul(unity_ObjectToWorld, m_RS);
 
+    // Slight random Y rotation to break camera-facing uniformity
+    float rotHash = HashSimple(positionWS + float3(42.0, 0.0, 17.0));
+    float yRot = (rotHash - 0.5) * 0.15; // +-0.075 radians (~4.3 degrees)
+    float cy = cos(yRot); float sy = sin(yRot);
+    float3x3 yRotMat = float3x3(
+        cy, 0, sy,
+         0, 1,  0,
+       -sy, 0, cy
+    );
+    unity_ObjectToWorld._m00_m10_m20 = mul(yRotMat, unity_ObjectToWorld._m00_m10_m20);
+    unity_ObjectToWorld._m02_m12_m22 = mul(yRotMat, unity_ObjectToWorld._m02_m12_m22);
+
     uint hashX = asuint(positionWS.x) * 1664525u;
     uint hashZ = asuint(positionWS.z) * 1013904223u;
     uint texHash = hashX ^ hashZ;

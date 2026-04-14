@@ -3,8 +3,8 @@ Shader "Ledsna/Lit"
     Properties
     {
         // Outline Thresholds
-        _DepthThreshold("Depth Threshold", Float) = 52
-        _NormalsThreshold("Normals Threshold", Float) = 0.17
+        _DepthThreshold("Depth Threshold", Float) = 2000
+        _NormalsThreshold("Normals Threshold", Float) = 0.6
         _ExternalScale("External Scale", Float) = 1
         _InternalScale("Internal Scale", Float) = 1
 
@@ -184,6 +184,8 @@ Shader "Ledsna/Lit"
             #pragma multi_compile_instancing
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
             #include_with_pragmas "Assets/_Graphics/Toon Lit/Quantize.hlsl"
+            #pragma multi_compile_fragment _ _WRITE_PIXEL_PERFECT_DETAIL
+            #pragma target 4.5 _WRITE_PIXEL_PERFECT_DETAIL
             
             #include "../ShaderLibrary/LitInput.hlsl"
             #include "../ShaderLibrary/LitForwardPass.hlsl"
