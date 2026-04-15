@@ -80,13 +80,13 @@ MonoBehaviour:
   m_Active: 1
   m_Settings:
     AOMethod: 1
-    Downsample: 1
+    Downsample: 0
     AfterOpaque: 0
     Source: 1
     NormalSamples: 2
-    Intensity: 1
+    Intensity: 4
     DirectLightingStrength: 1
-    Radius: 0.2
+    Radius: 0.12
     Samples: 0
     BlurQuality: 0
     Falloff: 1000
@@ -145,7 +145,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aee646932b744b7e9f8df520e52c051b, type: 3}
   m_Name: VolumetricFogFeature
   m_EditorClassIdentifier: VolumetricFog.Core::VolumetricFog.Core.VolumetricFogFeature
-  m_Active: 0
+  m_Active: 1
   VolumetricFogShader: {fileID: 4800000, guid: 02b530bd2bbb4092a6b4061f697723cd, type: 3}
   ShapeTexture: {fileID: 11700000, guid: 017952c84bd768942aa40adaebc89625, type: 2}
   DetailTexture: {fileID: 11700000, guid: 4e284fbabf836e44ab64409b9131d99f, type: 2}
@@ -186,7 +186,7 @@ MonoBehaviour:
   - {fileID: -3658006204519524491}
   m_RendererFeatureMap: 5c3fe3564f7ba1ec88d6b591ca61b308dc5a8a2da5cc8dfb86295d068082f1a0ee7cd4d8400d2098755770e9bc263ccd
   m_UseNativeRenderPass: 0
-  postProcessData: {fileID: 0}
+  postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 3
   m_PrepassLayerMask:
     serializedVersion: 2

@@ -64,6 +64,9 @@ Shader "Ledsna/SuperSamplingResolve"
                 [unroll] for (int i = 0; i < 4; i++)
                     if (hasDetail[i]) detailCount++;
 
+                if (detailCount == 0)
+                    return (color[0] + color[1] + color[2] + color[3]) * 0.25;
+
                 // Less than 2 detail? Pick closest to camera
                 if (detailCount < 2)
                 {

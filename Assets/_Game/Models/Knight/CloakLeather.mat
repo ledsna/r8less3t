@@ -99,7 +99,7 @@ Material:
     - _Cull: 0
     - _Cutoff: 0.5
     - _DebugOn: 0
-    - _DepthThreshold: 3.4028235e+38
+    - _DepthThreshold: 2000
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
     - _DiffuseSpecularCelShader: 1
@@ -122,7 +122,7 @@ Material:
     - _MetallicSpecToggle: 1
     - _NormalsThreshold: 0.2
     - _OcclusionStrength: 1
-    - _OutlineStrength: 1
+    - _OutlineStrength: 0
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1

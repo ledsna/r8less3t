@@ -68,9 +68,11 @@ half GetIsophote(half NdotL, half3 lightDirectionWS, half3 normalWS)
 
     // Angle Envelope
     float alignment = abs(dot(normalize(TransformWorldToHClipDir(lightDirectionWS)), normalize(grad)));
+    // result *= step(0.75, alignment);
     result *= smoothstep(0.75, 0.98, alignment);
     
     // Depth Fade Out
+    // result *= step(0.4, sqrt(saturate(NdotL)));
     result *= smoothstep(0.4, 0.98, sqrt(saturate(NdotL)));
     return result;
 }
@@ -85,47 +87,51 @@ half3 LightingPhysicallyBased(BRDFData brdfData,
     half steps = _DiffuseSpecularCelShader ? _DiffuseSteps : -1;
 
     float camDist = length(positionWS - _WorldSpaceCameraPos);
-    half distFade = saturate((camDist - 50.0) / 150.0); // linear 0→1 from 50 to 100 units
+    // half distFade = saturate((camDist - 50.0) / 150.0); // linear 0→1 from 50 to 100 units
 
-    if (steps != -1)
-    {
-        steps = lerp(steps, 30, distFade);
-    }
-    s = lerp(s, HALF_MIN, distFade * 5);
+    // if (steps != -1)
+    // {
+    //     steps = lerp(steps, 30, distFade);
+    // }
+    // s = lerp(s, HALF_MIN, distFade * 5);
     
     float isophoteRings = 0;
-    float dither = Unity_Dither(0.5, float4(normalizedScreenSpaceUV, 0, 0));
+
+    float dither = 0;
+
+    #if defined(IS_BILLBOARD)
+        dither = Unity_Dither(0.5, float4(normalizedScreenSpaceUV, 0, 0));
+    #endif
+
+    half qNdotL = Quantize(steps, NdotL + dither / 2 / steps);
 
     half isIsophote = GetIsophote(NdotL, lightDirectionWS, normalWS);
-
-    isPixelPerfectDetail = max(isPixelPerfectDetail, isIsophote > 0.0 ? 1.0 : 0.0);
-
-    // half qNdotL = Quantize(steps, NdotL + dither / 2 / steps);
-    half qNdotL = Quantize(steps, NdotL);
     qNdotL += isIsophote / (steps - 1);
 
+    // isPixelPerfectDetail += isIsophote > 0 ? 1.0 : 0.0;
+
     // Mark band transition pixels (last pixel of the lit band)
-    if (steps > 0)
-    {
-        half baseBand = Quantize(steps, NdotL);
-        half bandLow = Quantize(steps, NdotL + fwidth(NdotL));
-        if (bandLow != baseBand)
-            isPixelPerfectDetail = 1.0;
-    }
+    // if (steps > 0)
+    // {
+    //     half baseBand = Quantize(steps, NdotL);
+    //     half bandLow = Quantize(steps, NdotL + fwidth(NdotL));
+    //     if (bandLow != baseBand)
+    //         isPixelPerfectDetail = 1.0;
+    // }
 
     half3 diffuse = lightColor * saturate(qNdotL) *
         Quantize(_ShadowSteps, shadowAttenuation) * distanceAttenuation;
     half3 brdf = brdfData.diffuse;
 
+
 #ifndef _SPECULARHIGHLIGHTS_OFF
     [branch] if (!specularHighlightsOff)
     {
         half specComponent = max(DirectBRDFSpecular(brdfData, normalWS, lightDirectionWS, viewDirectionWS), HALF_MIN);
-
         half qSpec =  exp(round(log(specComponent) / s + dither / 2) * s);
         // half s3 =  exp(floor( (log(specComponent) + brdfData.roughness * dither * _SpecularStep) / s) * s);
 
-        brdf += brdfData.specular * qSpec;
+        brdf += brdfData.specular * qSpec;// * saturate((2 - max(length(fwidth(normalWS)), 1)));
     }
 #endif // _SPECULARHIGHLIGHTS_OFF
     return brdf * diffuse;
@@ -187,21 +193,6 @@ half3 CalculateLightingColor(LightingData lightingData, half outlineType)
     {
         return lerp(half3(0, 0, 0), half3(floor(outlineType / 2), 0, outlineType % 2), outlineType);
     }
-
-    // Legacy: lit outlines are lighted, shadowed are dimmed
-    // if (outlineType != 0)
-    // {
-    //     float factor = RGBtoHSV(lightingColor).b;
-    //
-    //     float final_factor = 0;
-    //
-    //     if (factor >= 0)
-    //         final_factor = lerp(2.25, 2.75, _OutlineStrength);
-    //     else
-    //         final_factor = lerp(0, 0.5, 1 - _OutlineStrength);
-    //     
-    //     return final_factor * lightingColor;
-    // }
 
     if (outlineType == 1)
         return lightingColor / (1 + _OutlineStrength);
@@ -288,13 +279,22 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData, out hal
     half outlineType = OutlineType(inputData.normalizedScreenSpaceUV);
     isPixelPerfectDetail = outlineType > 0 ? 1.0 : 0.0;
 
+    half3 lightingNormal = inputData.normalWS;
+
+    if (outlineType == 1)
+    {
+        half3 viewDir = inputData.viewDirectionWS;
+        lightingNormal = normalize(lightingNormal - dot(lightingNormal, viewDir) * viewDir);
+    }
+
+
 #ifdef _LIGHT_LAYERS
     if (IsMatchingLightLayer(mainLight.layerMask, meshRenderingLayers))
 #endif
     {
         lightingData.mainLightColor = LightingPhysicallyBased(brdfData, mainLight.color,
             mainLight.direction, mainLight.distanceAttenuation, mainLight.shadowAttenuation,
-            inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV, specularHighlightsOff, inputData.positionWS, isPixelPerfectDetail);
+            lightingNormal, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV, specularHighlightsOff, inputData.positionWS, isPixelPerfectDetail);
     }
 
     #if defined(_ADDITIONAL_LIGHTS)
@@ -312,7 +312,7 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData, out hal
 #endif
         {
             lightingData.additionalLightsColor += LightingPhysicallyBased(brdfData, light.color, light.direction,
-                light.distanceAttenuation, light.shadowAttenuation, inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV,
+                light.distanceAttenuation, light.shadowAttenuation, lightingNormal, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV,
                 specularHighlightsOff, inputData.positionWS, isPixelPerfectDetail);
         }
     }
@@ -326,7 +326,7 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData, out hal
 #endif
         {
             lightingData.additionalLightsColor += LightingPhysicallyBased(brdfData, light.color, light.direction,
-                light.distanceAttenuation, light.shadowAttenuation, inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV,
+                light.distanceAttenuation, light.shadowAttenuation, lightingNormal, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV,
                 specularHighlightsOff, inputData.positionWS, isPixelPerfectDetail);
         }
     LIGHT_LOOP_END
@@ -339,7 +339,12 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData, out hal
         half NoV = dot(inputData.normalWS, inputData.viewDirectionWS);
 
         reflectVector = QuantizeDirectionSpherical(reflectVector, _ReflectionSteps, _ReflectionSteps);
-        half fresnelTerm = Pow4(1.0 - saturate(Quantize(_FresnelSteps, NoV + Unity_Dither(0.5, float4(inputData.normalizedScreenSpaceUV, 0, 0)) / 4 / _FresnelSteps)));
+
+        half billboardOffset = 0;
+        #if defined(IS_BILLBOARD)
+            billboardOffset = Unity_Dither(0.5, float4(inputData.normalizedScreenSpaceUV, 0, 0)) / 4 / _FresnelSteps;
+        #endif
+        half fresnelTerm = Pow4(1.0 - saturate(Quantize(_FresnelSteps, NoV + billboardOffset)));
 
         half3 indirectSpecular = GlossyEnvironmentReflection(reflectVector, inputData.positionWS, brdfData.perceptualRoughness, 1.0h, inputData.normalizedScreenSpaceUV);
 

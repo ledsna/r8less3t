@@ -105,7 +105,7 @@ Material:
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _Concave: 0
-    - _Convex: 0
+    - _Convex: 1
     - _Cull: 2
     - _Cutoff: 0.5
     - _DebugOn: 0
@@ -113,7 +113,7 @@ Material:
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
     - _DiffuseSpecularCelShader: 1
-    - _DiffuseSteps: 7
+    - _DiffuseSteps: 5
     - _DistanceSteps: -1
     - _DstBlend: 0
     - _DstBlendAlpha: 0
@@ -127,7 +127,7 @@ Material:
     - _InternalScale: 1
     - _LightmapSteps: 4
     - _Metallic: 1
-    - _NormalsThreshold: 0.17
+    - _NormalsThreshold: 0.6
     - _OcclusionStrength: 1
     - _OutlineStrength: 1
     - _Parallax: 0.005
@@ -143,6 +143,7 @@ Material:
     - _SpecularSteps: 10
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
+    - _SubmeshID: 0
     - _Surface: 0
     - _ValueSaturationCelShader: 0
     - _ValueSteps: 0.5

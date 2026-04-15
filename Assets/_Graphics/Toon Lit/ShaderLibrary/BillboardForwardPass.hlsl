@@ -85,6 +85,8 @@ float3 PerturbGrassNormal(float3 originalNormal, float3 worldPos)
 #ifndef UNIVERSAL_FORWARD_LIT_PASS_INCLUDED
 #define UNIVERSAL_FORWARD_LIT_PASS_INCLUDED
 
+#define IS_BILLBOARD 1
+
 #include "../ShaderLibrary/Lighting.hlsl"
 
 #if defined(_NORMALMAP)

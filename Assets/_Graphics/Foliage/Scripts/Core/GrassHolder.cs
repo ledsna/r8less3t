@@ -227,7 +227,7 @@ namespace Grass.Core
                 CopySelectiveProperties(renderData.material, _rootMeshMaterial);
 
                 // Assign a globally unique Base ID for this grass patch
-                uint patchBaseID = global::WriteRendererID.GetNextID();
+                uint patchBaseID = 0; //global::WriteRendererID.GetNextID();
                 renderData.materialPropertyBlock.SetFloat("_InstancedBaseID", patchBaseID);
 
                 if (_rootMeshMaterial != null)

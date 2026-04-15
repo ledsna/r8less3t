@@ -12,6 +12,10 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
+  - DIRLIGHTMAP_COMBINED
+  - LIGHTMAP_ON
+  - LIGHTMAP_SHADOW_MIXING
+  - SHADOWS_SHADOWMASK
   - _ALPHATEST_ON
   - _SPECULAR_SETUP
   m_InvalidKeywords:
@@ -126,7 +130,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _AlphaClip: 1
-    - _AlphaToMask: 0
+    - _AlphaToMask: 1
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
@@ -137,7 +141,7 @@ Material:
     - _DEBUG_CULL_MASK: 0
     - _DebugOn: 0
     - _DepthThreshold: 100000
-    - _DiffuseSpecularCelShader: 0
+    - _DiffuseSpecularCelShader: 1
     - _DiffuseSteps: 12
     - _DistanceSteps: -1
     - _DstBlend: 0
