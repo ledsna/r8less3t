@@ -130,7 +130,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _AlphaClip: 1
-    - _AlphaToMask: 1
+    - _AlphaToMask: 0
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
@@ -158,7 +158,7 @@ Material:
     - _Metallic: 0
     - _NormalsThreshold: 0.17
     - _OcclusionStrength: 1
-    - _OutlineStrength: 0
+    - _OutlineStrength: 0.3
     - _QueueOffset: 0
     - _ReceiveShadows: 1
     - _ReflectionSteps: 120

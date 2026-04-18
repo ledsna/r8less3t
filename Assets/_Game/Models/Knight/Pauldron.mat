@@ -99,8 +99,8 @@ Material:
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
     - _DiffuseSpecularCelShader: 0
-    - _DiffuseSteps: 12
-    - _DistanceSteps: 1000
+    - _DiffuseSteps: -1
+    - _DistanceSteps: -1
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
@@ -112,13 +112,13 @@ Material:
     - _GlossyReflections: 0
     - _InternalScale: 1
     - _Metallic: 1
-    - _NormalsThreshold: 0.5
+    - _NormalsThreshold: 0.6
     - _OcclusionStrength: 0.5
-    - _OutlineStrength: 0
+    - _OutlineStrength: 0.5
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _ReflectionSteps: 120
+    - _ReflectionSteps: 1000000
     - _RingOffset: 1
     - _RingWidth: 1
     - _ShadowSteps: -1

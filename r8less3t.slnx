@@ -17,7 +17,6 @@
   <Project Path="ParrelSync.csproj" />
   <Project Path="Project.Shared.Runtime.csproj" />
   <Project Path="BetterHierarchyDemoScripts.csproj" />
-  <Project Path="Feature.GodRays.Core.csproj" />
   <Project Path="Feature.Grass.Editor.csproj" />
   <Project Path="ASoliman.Utils.ClipboardPlus.csproj" />
   <Project Path="Feature.Grass.csproj" />

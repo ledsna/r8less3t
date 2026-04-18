@@ -83,8 +83,63 @@ half3 LightingPhysicallyBased(BRDFData brdfData,
     bool specularHighlightsOff, float3 positionWS, inout half isPixelPerfectDetail)
 {
     half NdotL = dot(normalWS, lightDirectionWS);
-    half s = saturate(2 * _SpecularStep + HALF_MIN);
+    half s = saturate(_SpecularStep + HALF_MIN);
     half steps = _DiffuseSpecularCelShader ? _DiffuseSteps : -1;
+
+
+
+
+// Hatching pattern
+    float2 ditherUV = normalizedScreenSpaceUV;
+    {
+        float2 uv      = normalizedScreenSpaceUV * _ScreenParams.xy;
+        int2   iuv     = int2(uv);
+        float2 grad    = float2(ddx(NdotL), ddy(NdotL));
+        float  gradLen = length(grad);
+
+        if (gradLen > 1e-4)
+        {
+            // Snap gradient direction to 16 integer-slope directions (22.5° steps).
+            // This grants much higher fidelity curves while keeping exact integer dot products.
+            static const int2 CDIR[16] = {
+                int2( 1,  0), int2( 2,  1), int2( 1,  1), int2( 1,  2),
+                int2( 0,  1), int2(-1,  2), int2(-1,  1), int2(-2,  1),
+                int2(-1,  0), int2(-2, -1), int2(-1, -1), int2(-1, -2),
+                int2( 0, -1), int2( 1, -2), int2( 1, -1), int2( 2, -1)
+            };
+            float2 gradN    = grad / gradLen;
+            
+            // atan2 * (8 / PI) maps to 16 distinct sectors. Modulo 15 to wrap safely.
+            int snapGrad = ((int)round(atan2(gradN.y, gradN.x) * (8.0 / PI)) + 16) & 15;
+            int2 snapDir = CDIR[snapGrad];
+            
+            // integer position ACROSS the isophote instead of along it (following the gradient)
+            int bAcross = dot(iuv, snapDir);
+
+            // NORMALIZE THE 16-DIR VECTOR SPACING: 
+            // Because our new vectors like (2,1) have a magnitude > 1, the dot product 
+            // 'jumps' by 2 pixels at a time horizontally. If we modulo that raw value by 4, 
+            // the sequence skips indices (going 0, 2, 0, 2) which breaks the Bayer dither matrix!
+            // Instead, dividing by the dominant axis forces the values to perfectly group into
+            // 2-pixel-wide (or 1-pixel-wide) stair-stepped segments matching the pixel-art math.
+            int maxAxis = max(abs(snapDir.x), abs(snapDir.y));
+            int bAcrossNorm = (int)floor((float)bAcross / maxAxis);
+
+            // 1D ordered dither thresholds, 4 levels, centered at 0.
+            // Same order as a 1D Bayer sequence: darkest, brightest, mid-dark, mid-bright.
+            static const float T[4] = { -0.375, 0.375, -0.125, 0.125 };
+            int bi = ((bAcrossNorm % 4) + 4) % 4;
+
+            // Pass the 1D index into Unity_Dither's x-axis (y = 0 picks a fixed table column).
+            ditherUV = float2(bi, 0) / _ScreenParams.xy;
+        }
+    }
+
+    half dithe = Unity_Dither(.5, float4(ditherUV, 0, 0));
+   half qNdotL = Quantize(steps, NdotL + dithe / _DiffuseSteps * dot(viewDirectionWS, normalWS) / 2);
+
+
+
 
     float camDist = length(positionWS - _WorldSpaceCameraPos);
     // half distFade = saturate((camDist - 50.0) / 150.0); // linear 0→1 from 50 to 100 units
@@ -100,10 +155,10 @@ half3 LightingPhysicallyBased(BRDFData brdfData,
     float dither = 0;
 
     #if defined(IS_BILLBOARD)
-        dither = Unity_Dither(0.5, float4(normalizedScreenSpaceUV, 0, 0));
+        // dither = Unity_Dither(0.5, float4(normalizedScreenSpaceUV, 0, 0));
     #endif
 
-    half qNdotL = Quantize(steps, NdotL + dither / 2 / steps);
+    // half qNdotL = Quantize(steps, NdotL + dither / 2 / steps);
 
     half isIsophote = GetIsophote(NdotL, lightDirectionWS, normalWS);
     qNdotL += isIsophote / (steps - 1);
@@ -119,8 +174,12 @@ half3 LightingPhysicallyBased(BRDFData brdfData,
     //         isPixelPerfectDetail = 1.0;
     // }
 
-    half3 diffuse = lightColor * saturate(qNdotL) *
-        Quantize(_ShadowSteps, shadowAttenuation) * distanceAttenuation;
+    half inShadow = (shadowAttenuation >= 0.5 ? 1 : 0);
+
+    half3 diffuse = lightColor * saturate(qNdotL) * inShadow * distanceAttenuation;
+
+    isPixelPerfectDetail = fwidth(inShadow) > 0 ? 1 : isPixelPerfectDetail;
+
     half3 brdf = brdfData.diffuse;
 
 
@@ -284,7 +343,7 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData, out hal
     if (outlineType == 1)
     {
         half3 viewDir = inputData.viewDirectionWS;
-        lightingNormal = normalize(lightingNormal - dot(lightingNormal, viewDir) * viewDir);
+        lightingNormal = normalize(lightingNormal - 2 * _OutlineStrength * dot(lightingNormal, viewDir) * viewDir);
     }
 
 

@@ -71,7 +71,7 @@ MonoBehaviour:
     m_OverrideState: 1
     m_Value: {x: 1, y: 0, z: 0}
   enablePointLights:
-    m_OverrideState: 0
+    m_OverrideState: 1
     m_Value: 1
   maxPointLights:
     m_OverrideState: 1
@@ -96,7 +96,7 @@ MonoBehaviour:
     m_Value: 2
   fogColor:
     m_OverrideState: 1
-    m_Value: {r: 1, g: 1, b: 1, a: 1}
+    m_Value: {r: 0.6367924, g: 0.8912246, b: 1, a: 1}
 --- !u!114 &-1758693631766860888
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -127,7 +127,7 @@ MonoBehaviour:
     m_Value: 0
   focusDistance:
     m_OverrideState: 1
-    m_Value: 15.8
+    m_Value: 18
   aperture:
     m_OverrideState: 1
     m_Value: 2.46
@@ -177,10 +177,10 @@ MonoBehaviour:
     m_Value: 1
   threshold:
     m_OverrideState: 1
-    m_Value: 0.8
+    m_Value: 1
   intensity:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 0.5
   scatter:
     m_OverrideState: 1
     m_Value: 0.5
