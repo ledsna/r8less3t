@@ -52,7 +52,7 @@ float Unity_Dither(float In, float4 ScreenPosition)
     return In - DITHER_THRESHOLDS[index];
 }
 
-half GetIsophote(half NdotL, half3 lightDirectionWS, half3 normalWS)
+bool IsIsophote(half NdotL, half3 viewDirectionWS, half3 normalWS)
 {
     half result = 0;
 
@@ -66,15 +66,20 @@ half GetIsophote(half NdotL, half3 lightDirectionWS, half3 normalWS)
     // Mark last pixel of the lit band (pixelDist > 0) instead of first pixel of shadow band
     result = (ringIndex % 2 == 1 && ringIndex <= _DistanceSteps && pixelDist < 0) ? 1.0 : 0.0;
 
-    // Angle Envelope
-    float alignment = abs(dot(normalize(TransformWorldToHClipDir(lightDirectionWS)), normalize(grad)));
-    // result *= step(0.75, alignment);
-    result *= smoothstep(0.75, 0.98, alignment);
-    
-    // Depth Fade Out
-    // result *= step(0.4, sqrt(saturate(NdotL)));
-    result *= smoothstep(0.4, 0.98, sqrt(saturate(NdotL)));
-    return result;
+    // Face-the-camera envelope.
+    // Fade the hatch out at grazing (silhouette) angles where it reads as
+    // noise rather than shading. N·V is 1 when the surface faces the camera,
+    // 0 at the silhouette.
+    //
+    // NOTE: normalWS and viewDirectionWS should already be unit length by
+    // the time they reach here; double-normalizing is a no-op but
+    // defensive. Keep the fade range WIDE — on a curved surface most
+    // visible pixels sit in the 0.2–0.8 range of N·V, so if you smoothstep
+    // above 0.75 you kill the hatch on most of the object.
+    half NdotV = saturate(dot(normalWS, viewDirectionWS));
+    half alignment = smoothstep(0.5, 1, NdotL);
+    result *= smoothstep(0.85, 1, NdotV) * alignment;
+    return result > 0;
 }
 
 half3 LightingPhysicallyBased(BRDFData brdfData,
@@ -86,62 +91,9 @@ half3 LightingPhysicallyBased(BRDFData brdfData,
     half s = saturate(_SpecularStep + HALF_MIN);
     half steps = _DiffuseSpecularCelShader ? _DiffuseSteps : -1;
 
-
-
-
-// Hatching pattern
-    float2 ditherUV = normalizedScreenSpaceUV;
-    {
-        float2 uv      = normalizedScreenSpaceUV * _ScreenParams.xy;
-        int2   iuv     = int2(uv);
-        float2 grad    = float2(ddx(NdotL), ddy(NdotL));
-        float  gradLen = length(grad);
-
-        if (gradLen > 1e-4)
-        {
-            // Snap gradient direction to 16 integer-slope directions (22.5° steps).
-            // This grants much higher fidelity curves while keeping exact integer dot products.
-            static const int2 CDIR[16] = {
-                int2( 1,  0), int2( 2,  1), int2( 1,  1), int2( 1,  2),
-                int2( 0,  1), int2(-1,  2), int2(-1,  1), int2(-2,  1),
-                int2(-1,  0), int2(-2, -1), int2(-1, -1), int2(-1, -2),
-                int2( 0, -1), int2( 1, -2), int2( 1, -1), int2( 2, -1)
-            };
-            float2 gradN    = grad / gradLen;
-            
-            // atan2 * (8 / PI) maps to 16 distinct sectors. Modulo 15 to wrap safely.
-            int snapGrad = ((int)round(atan2(gradN.y, gradN.x) * (8.0 / PI)) + 16) & 15;
-            int2 snapDir = CDIR[snapGrad];
-            
-            // integer position ACROSS the isophote instead of along it (following the gradient)
-            int bAcross = dot(iuv, snapDir);
-
-            // NORMALIZE THE 16-DIR VECTOR SPACING: 
-            // Because our new vectors like (2,1) have a magnitude > 1, the dot product 
-            // 'jumps' by 2 pixels at a time horizontally. If we modulo that raw value by 4, 
-            // the sequence skips indices (going 0, 2, 0, 2) which breaks the Bayer dither matrix!
-            // Instead, dividing by the dominant axis forces the values to perfectly group into
-            // 2-pixel-wide (or 1-pixel-wide) stair-stepped segments matching the pixel-art math.
-            int maxAxis = max(abs(snapDir.x), abs(snapDir.y));
-            int bAcrossNorm = (int)floor((float)bAcross / maxAxis);
-
-            // 1D ordered dither thresholds, 4 levels, centered at 0.
-            // Same order as a 1D Bayer sequence: darkest, brightest, mid-dark, mid-bright.
-            static const float T[4] = { -0.375, 0.375, -0.125, 0.125 };
-            int bi = ((bAcrossNorm % 4) + 4) % 4;
-
-            // Pass the 1D index into Unity_Dither's x-axis (y = 0 picks a fixed table column).
-            ditherUV = float2(bi, 0) / _ScreenParams.xy;
-        }
-    }
-
-    half dithe = Unity_Dither(.5, float4(ditherUV, 0, 0));
-   half qNdotL = Quantize(steps, NdotL + dithe / _DiffuseSteps * dot(viewDirectionWS, normalWS) / 2);
-
-
-
-
     float camDist = length(positionWS - _WorldSpaceCameraPos);
+
+    // return dot(normalWS, viewDirectionWS);
     // half distFade = saturate((camDist - 50.0) / 150.0); // linear 0→1 from 50 to 100 units
 
     // if (steps != -1)
@@ -155,30 +107,31 @@ half3 LightingPhysicallyBased(BRDFData brdfData,
     float dither = 0;
 
     #if defined(IS_BILLBOARD)
-        // dither = Unity_Dither(0.5, float4(normalizedScreenSpaceUV, 0, 0));
+        dither = Unity_Dither(0.5, float4(normalizedScreenSpaceUV, 0, 0));
     #endif
 
-    // half qNdotL = Quantize(steps, NdotL + dither / 2 / steps);
+    half qNdotL = Quantize(steps, NdotL + dither / 2 / steps);
 
-    half isIsophote = GetIsophote(NdotL, lightDirectionWS, normalWS);
+    bool isIsophote = IsIsophote(NdotL, viewDirectionWS, normalWS);
     qNdotL += isIsophote / (steps - 1);
 
-    // isPixelPerfectDetail += isIsophote > 0 ? 1.0 : 0.0;
+    if (isIsophote > 0)
+        isPixelPerfectDetail = max(isPixelPerfectDetail, 0.5);
 
     // Mark band transition pixels (last pixel of the lit band)
-    // if (steps > 0)
-    // {
-    //     half baseBand = Quantize(steps, NdotL);
-    //     half bandLow = Quantize(steps, NdotL + fwidth(NdotL));
-    //     if (bandLow != baseBand)
-    //         isPixelPerfectDetail = 1.0;
-    // }
+    if (steps > 0)
+    {
+        half baseBand = Quantize(steps, NdotL);
+        half bandLow = Quantize(steps, NdotL + fwidth(NdotL));
+        if (bandLow != baseBand)
+            isPixelPerfectDetail = max(isPixelPerfectDetail, 0.5);
+    }
 
     half inShadow = (shadowAttenuation >= 0.5 ? 1 : 0);
 
     half3 diffuse = lightColor * saturate(qNdotL) * inShadow * distanceAttenuation;
 
-    isPixelPerfectDetail = fwidth(inShadow) > 0 ? 1 : isPixelPerfectDetail;
+    // isPixelPerfectDetail = fwidth(inShadow) > 0 ? 1 : isPixelPerfectDetail;
 
     half3 brdf = brdfData.diffuse;
 
@@ -343,7 +296,7 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData, out hal
     if (outlineType == 1)
     {
         half3 viewDir = inputData.viewDirectionWS;
-        lightingNormal = normalize(lightingNormal - 2 * _OutlineStrength * dot(lightingNormal, viewDir) * viewDir);
+        lightingNormal = normalize(lightingNormal - dot(lightingNormal, viewDir) * viewDir);
     }
 
 

@@ -33,25 +33,35 @@ Shader "Ledsna/SuperSamplingResolve"
 
             static const float DEPTH_DETAIL_CUTOFF = 50.0;
 
+            // Epsilon for treating two floating-point DETAIL values as the
+            // same tier. DETAIL is in [0, 1]; any two values within this
+            // distance belong to the same tier for the majority compare.
+            static const float DETAIL_TIER_EPSILON = 1.0 / 255.0;
+
+            bool SameDetail(float a, float b)
+            {
+                return abs(a - b) < DETAIL_TIER_EPSILON;
+            }
+
             float3 ResolveBlock2x2(int2 base)
             {
                 float3 color[4];
-                float linDepth[4];
+                float  linDepth[4];
                 float2 objID[4];
-                bool hasDetail[4];
+                float  detail[4];
 
                 int i = 0;
                 [unroll] for (int y = 0; y < 2; y++)
                 [unroll] for (int x = 0; x < 2; x++, i++)
                 {
                     int2 pos       = base + int2(x, y);
-                    color[i]       = LOAD_TEXTURE2D(_BlitTexture, pos).rgb;
+                    color[i]       = LOAD_TEXTURE2D(_BlitTexture,               pos).rgb;
                     linDepth[i]    = LinearEyeDepth(LOAD_TEXTURE2D(_CameraDepthTexture, pos).r, _ZBufferParams);
-                    objID[i]       = LOAD_TEXTURE2D(_CameraObjectIDTexture, pos).rg;
-                    hasDetail[i]   = LOAD_TEXTURE2D(_PixelPerfectDetailTexture, pos).r > 0.5;
+                    objID[i]       = LOAD_TEXTURE2D(_CameraObjectIDTexture,     pos).rg;
+                    detail[i]      = LOAD_TEXTURE2D(_PixelPerfectDetailTexture, pos).r;
                 }
 
-                // Far away? Just average everything
+                // Far away? Just average everything.
                 float closestLin = linDepth[0];
                 [unroll] for (int i = 1; i < 4; i++)
                     closestLin = min(closestLin, linDepth[i]);
@@ -59,35 +69,38 @@ Shader "Ledsna/SuperSamplingResolve"
                 if (closestLin > DEPTH_DETAIL_CUTOFF)
                     return (color[0] + color[1] + color[2] + color[3]) * 0.25;
 
-                // Count detail pixels
+                // Count pixels with ANY detail (detail > 0).
                 int detailCount = 0;
                 [unroll] for (int i = 0; i < 4; i++)
-                    if (hasDetail[i]) detailCount++;
+                    if (detail[i] > 0.0) detailCount++;
 
                 if (detailCount == 0)
                     return (color[0] + color[1] + color[2] + color[3]) * 0.25;
 
-                // Less than 2 detail? Pick closest to camera
+                // A single detail pixel: just pick the closest-depth pixel.
                 if (detailCount < 2)
                 {
                     float3 closestColor = color[0];
+                    float  closestDepth = linDepth[0];
                     [unroll] for (int i = 1; i < 4; i++)
                     {
-                        if (linDepth[i] <= closestLin)
-                            closestColor = color[i];
+                        if (detail[i] > 0.0)
+                        {
+                            return color[i];
+                        }
                     }
-                    return closestColor;
                 }
 
-                // 2+ detail: vote for majority Object ID among detail pixels
+                // ── Stage 1: pick the winning OBJECT ID by majority among
+                //    detail-bearing pixels (tie-broken by closest depth).
                 int votes[4] = { 0, 0, 0, 0 };
                 [unroll] for (int a = 0; a < 4; a++)
                 {
-                    if (!hasDetail[a]) continue;
+                    if (detail[a] <= 0.0) continue;
                     votes[a] = 1;
                     [unroll] for (int b = a + 1; b < 4; b++)
                     {
-                        if (!hasDetail[b]) continue;
+                        if (detail[b] <= 0.0) continue;
                         if (SameID(objID[a], objID[b]))
                             { votes[a]++; votes[b]++; }
                     }
@@ -97,8 +110,7 @@ Shader "Ledsna/SuperSamplingResolve"
                 [unroll] for (int i = 0; i < 4; i++)
                     maxVotes = max(maxVotes, votes[i]);
 
-                // Count how many distinct IDs hold maxVotes
-                int topIDCount = 0;
+                int    topIDCount = 0;
                 float2 topIDs[4];
                 [unroll] for (int i = 0; i < 4; i++)
                 {
@@ -110,41 +122,44 @@ Shader "Ledsna/SuperSamplingResolve"
                         topIDs[topIDCount++] = objID[i];
                 }
 
-                // Tie? Pick closest object among tied IDs
+                float2 winnerID = topIDs[0];
                 if (topIDCount > 1)
                 {
                     float closestTie = 1e30;
-                    int winnerIdx = 0;
                     [unroll] for (int j = 0; j < topIDCount; j++)
                     {
                         [unroll] for (int i = 0; i < 4; i++)
                         {
-                            if (hasDetail[i] && SameID(objID[i], topIDs[j]) && linDepth[i] < closestTie)
+                            if (detail[i] > 0.0 && SameID(objID[i], topIDs[j]) && linDepth[i] < closestTie)
                             {
                                 closestTie = linDepth[i];
-                                winnerIdx = j;
+                                winnerID  = topIDs[j];
                             }
                         }
                     }
-
-                    float3 sum = 0; int count = 0;
-                    [unroll] for (int i = 0; i < 4; i++)
-                    {
-                        if (hasDetail[i] && SameID(objID[i], topIDs[winnerIdx]))
-                        {
-                            sum += color[i];
-                            count++;
-                        }
-                    }
-                    return sum / max(count, 1);
                 }
 
-                // Clear winner: average its detail samples
-                float3 winnerSum = 0;
-                int winnerCount = 0;
+                // ── Stage 2: among the winning object's detail pixels, find
+                //    the HIGHEST DETAIL TIER and average only those pixels.
+                //
+                //    "Tier" = a unique detail value (within an epsilon).
+                //    We scan the winning-object detail values, track the
+                //    max tier, and also count how many pixels sit at that
+                //    tier. The final color is the mean of those pixels.
+                float maxTier = -1.0;
                 [unroll] for (int i = 0; i < 4; i++)
                 {
-                    if (hasDetail[i] && SameID(objID[i], topIDs[0]))
+                    if (detail[i] > 0.0 && SameID(objID[i], winnerID) && detail[i] > maxTier)
+                        maxTier = detail[i];
+                }
+
+                float3 winnerSum   = 0;
+                int    winnerCount = 0;
+                [unroll] for (int i = 0; i < 4; i++)
+                {
+                    if (detail[i] > 0.0
+                        && SameID(objID[i], winnerID)
+                        && SameDetail(detail[i], maxTier))
                     {
                         winnerSum += color[i];
                         winnerCount++;

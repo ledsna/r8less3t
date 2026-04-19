@@ -156,9 +156,9 @@ Material:
     - _InternalScale: 1
     - _LightmapSteps: -1
     - _Metallic: 0
-    - _NormalsThreshold: 0.17
+    - _NormalsThreshold: 0
     - _OcclusionStrength: 1
-    - _OutlineStrength: 0.3
+    - _OutlineStrength: 0.2
     - _QueueOffset: 0
     - _ReceiveShadows: 1
     - _ReflectionSteps: 120

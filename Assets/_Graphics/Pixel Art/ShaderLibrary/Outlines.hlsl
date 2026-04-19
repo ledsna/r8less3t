@@ -118,7 +118,7 @@ half OutlineType(half2 uv)
     // Priority: External edges first (depth OR object ID), then Internal edges (normals)
     half outlineType = 0.0h;
     
-    if ((id_edge > 0.0 && depth_edge > 0.0) && _External)
+    if ((id_edge > 0.0) && _External)
         outlineType = 1.0h;
     else if (normal_edge > 0.0h && (depth_diff_sum >= 0.0h && _Convex || depth_diff_sum < 0.0h && _Concave))
         outlineType = 2.0h;

@@ -109,12 +109,12 @@ Material:
     - _Cull: 2
     - _Cutoff: 0.5
     - _DebugOn: 0
-    - _DepthThreshold: 2000000
+    - _DepthThreshold: 200
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
     - _DiffuseSpecularCelShader: 1
-    - _DiffuseSteps: 5
-    - _DistanceSteps: -1
+    - _DiffuseSteps: 3
+    - _DistanceSteps: 2
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
@@ -129,7 +129,7 @@ Material:
     - _Metallic: 1
     - _NormalsThreshold: 0.6
     - _OcclusionStrength: 1
-    - _OutlineStrength: 1
+    - _OutlineStrength: 0.5
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1
@@ -151,8 +151,8 @@ Material:
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 0.48235294, g: 0.24117647, b: 0.24117647, a: 1}
-    - _Color: {r: 0.4823529, g: 0.24117643, b: 0.24117643, a: 1}
+    - _BaseColor: {r: 0.18867922, g: 0.070309706, b: 0.070309706, a: 1}
+    - _Color: {r: 0.18867919, g: 0.070309676, b: 0.070309676, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _OutlineColour: {r: 0.5647059, g: 0.28235295, b: 0.28235295, a: 1}
     - _SpecColor: {r: 0.2, g: 0.2, b: 0.2, a: 1}

@@ -99,10 +99,10 @@ Material:
     - _Cull: 2
     - _Cutoff: 0.5
     - _DebugOn: 0
-    - _DepthThreshold: 2000
+    - _DepthThreshold: 20
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
-    - _DiffuseSpecularCelShader: 0
+    - _DiffuseSpecularCelShader: 1
     - _DiffuseSteps: -1
     - _DistanceSteps: -1
     - _DstBlend: 0
@@ -126,7 +126,7 @@ Material:
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _ReflectionSteps: 1000000
+    - _ReflectionSteps: 10000
     - _SaturationSteps: -1
     - _ShadowSteps: -1
     - _Smoothness: 0.2
