@@ -195,6 +195,18 @@ namespace Ledsna
         [Tooltip("Critical damping = 2 * sqrt(stiffness). For stiffness 200 that is ~28.3. Values above are overdamped (sluggish), below are underdamped (bouncy).")]
         [SerializeField] private float springDamping = 28.3f;
 
+        [Foldout("Rotation Settings")]
+        [Tooltip("Angles (deg) closer than this to the target snap to it, preventing sub-pixel shimmer after releasing input.")]
+        [SerializeField] private float rotationSnapThreshold = 0.01f;
+
+        [Foldout("Rotation Settings")]
+        [Tooltip("Distance (m) closer than this between pivot and follow target snaps to the target, preventing sub-pixel shimmer.")]
+        [SerializeField] private float followSnapThreshold = 0.0005f;
+
+        [Tooltip("When spring displacement (m) and velocity (m/s) are both below their thresholds, the camera snaps to the rest pose.")]
+        [SerializeField] private float springSnapDistance = 0.0005f;
+        [SerializeField] private float springSnapVelocity = 0.01f;
+
         // Maximum delta time to prevent explosion after long pauses / frame-steps
         private const float MaxDeltaTime = 0.1f;
         // Fixed sub-step size for stable spring integration
@@ -231,6 +243,15 @@ namespace Ledsna
                 // Semi-implicit Euler: update velocity first, then position
                 cameraVelocity += springForce * stepDt;
                 pos += cameraVelocity * stepDt;
+            }
+
+            // Kill imperceptible residual motion so the camera fully settles
+            // rather than shimmering around the ideal pose forever.
+            if ((idealCameraWorldPos - pos).sqrMagnitude < springSnapDistance * springSnapDistance &&
+                cameraVelocity.sqrMagnitude < springSnapVelocity * springSnapVelocity)
+            {
+                pos = idealCameraWorldPos;
+                cameraVelocity = Vector3.zero;
             }
 
             Vector3 newCameraPos = pos;
@@ -302,6 +323,14 @@ namespace Ledsna
             var currentAngleY = Mathf.LerpAngle(transform.eulerAngles.y, targetAngleY, smoothFactor);
             var currentAngleX = Mathf.LerpAngle(transform.eulerAngles.x, targetAngleX, smoothFactor);
 
+            // Snap to target when residual delta is below a perceptible threshold.
+            // Mathf.LerpAngle asymptotes and never actually reaches the target, which
+            // otherwise produces a subtle shimmer frame after frame.
+            if (Mathf.Abs(Mathf.DeltaAngle(currentAngleY, targetAngleY)) < rotationSnapThreshold)
+                currentAngleY = targetAngleY;
+            if (Mathf.Abs(Mathf.DeltaAngle(currentAngleX, targetAngleX)) < rotationSnapThreshold)
+                currentAngleX = targetAngleX;
+
             transform.rotation = Quaternion.Euler(currentAngleX, currentAngleY, 0);
         }
 
@@ -320,11 +349,21 @@ namespace Ledsna
             // Locked camera
             if (player is not null)
             {
+                Vector3 desired = player.transform.position + new Vector3(0, 1.8f, 0); // + player height to pivot around head
                 Vector3 targetPivotPosition = Vector3.SmoothDamp
                 (transform.position,
-                    player.transform.position + new Vector3(0, 1.8f, 0), // + player height (1.7?) to pivot around player's head
+                    desired,
                     ref currentVelocity,
                     cameraSmoothTime);
+
+                // SmoothDamp asymptotes; snap once we're within an imperceptible distance
+                // so the pivot doesn't produce a tiny shimmer after the player stops.
+                if ((desired - targetPivotPosition).sqrMagnitude < followSnapThreshold * followSnapThreshold &&
+                    currentVelocity.sqrMagnitude < followSnapThreshold * followSnapThreshold)
+                {
+                    targetPivotPosition = desired;
+                    currentVelocity = Vector3.zero;
+                }
 
                 transform.position = targetPivotPosition;
                 return;

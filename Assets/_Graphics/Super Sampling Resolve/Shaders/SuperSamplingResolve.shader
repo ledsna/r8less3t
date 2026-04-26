@@ -74,21 +74,83 @@ Shader "Ledsna/SuperSamplingResolve"
                 [unroll] for (int i = 0; i < 4; i++)
                     if (detail[i] > 0.0) detailCount++;
 
-                if (detailCount == 0)
+                
+                    // bred bliat
+
+                                        // if (detailCount < 2)
+                                        //     {
+                                        //         // average just non-detail pixels
+                                        //         float3 sum = 0;
+                                        //         int count = 0;
+                                        //         [unroll] for (int i = 0; i < 4; i++)
+                                        //             if (detail[i] <= 0.0)
+                                        //             {sum += color[i];
+                                        //             count++;
+                                        //             }
+                                        //         return sum / count;
+                                        //     }
+
+                                        // else if (detailCount == 2) {
+                                        //     // return closest pixel
+                                        //     float3 closestColor = color[0];
+                                        //     float closestDepth = linDepth[0];
+                                        //     [unroll] for (int i = 1; i < 4; i++)
+                                        //     {
+                                        //         if (linDepth[i] <= closestDepth)
+                                        //         {closestColor = color[i];
+                                        //         closestDepth = linDepth[i];
+                                        //         }
+                                        //     }
+                                        //     return closestColor;
+
+                                        // }
+
+                                        // else if (detailCount > 2)
+                                        // {
+                                        //     // average just detail pixels
+                                        //         float3 sum = 0;
+                                        //         int count = 0;
+                                        //         [unroll] for (int i = 0; i < 4; i++)
+                                        //             if (detail[i] > 0.0)
+                                        //             {sum += color[i];
+                                        //             count++;
+                                        //             }
+                                        //         return sum / count;
+                                        // }
+
+
+
+
+                if (detailCount <= 0)
                     return (color[0] + color[1] + color[2] + color[3]) * 0.25;
 
                 // A single detail pixel: just pick the closest-depth pixel.
+                // if (detailCount < 2)
+                // {
+                //     float3 closestColor = color[0];
+                //     float  closestDepth = linDepth[0];
+                //     [unroll] for (int i = 1; i < 4; i++)
+                //     {
+                //         if (detail[i] > 0.0)
+                //         {
+                //             return color[i];
+                //         }
+                //     }
+                // }
+
                 if (detailCount < 2)
                 {
                     float3 closestColor = color[0];
-                    float  closestDepth = linDepth[0];
+                    float closestDepth = linDepth[0];
                     [unroll] for (int i = 1; i < 4; i++)
                     {
-                        if (detail[i] > 0.0)
+                        if (linDepth[i] <= closestLin)
                         {
-                            return color[i];
+                            closestColor = color[i];
+                            closestDepth = linDepth[i];
                         }
                     }
+                    return closestColor;
                 }
 
                 // ── Stage 1: pick the winning OBJECT ID by majority among

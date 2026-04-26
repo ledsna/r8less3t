@@ -28,15 +28,15 @@ Material:
     m_Floats:
     - _AtmosphereThickness: 2
     - _Exposure: 1.3
-    - _Sharpness: 0.77
+    - _Sharpness: 0.8
     - _StartAngle: 0
     - _SunDisk: 1
     - _SunSize: 0.04
     - _SunSizeConvergence: 5
     m_Colors:
-    - _BelowHorizonColor: {r: 0.3607843, g: 0.48605666, b: 0.9019608, a: 1}
-    - _CosmosColor: {r: 0.16368002, g: 0.24639994, b: 0.66, a: 1}
-    - _FogColor: {r: 0.3607843, g: 0.48605666, b: 0.9019608, a: 1}
+    - _BelowHorizonColor: {r: 0.9019608, g: 0.85490197, b: 0.72156864, a: 1}
+    - _CosmosColor: {r: 0.18710591, g: 0.26572543, b: 0.65882355, a: 1}
+    - _FogColor: {r: 0.9019608, g: 0.8504294, b: 0.7224706, a: 1}
     - _GroundColor: {r: 0.3072804, g: 0.34319627, b: 0.42700002, a: 1}
     - _SkyTint: {r: 0.3679245, g: 0.3679245, b: 0.3679245, a: 1}
   m_BuildTextureStacks: []

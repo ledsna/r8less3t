@@ -115,17 +115,17 @@ half3 LightingPhysicallyBased(BRDFData brdfData,
     bool isIsophote = IsIsophote(NdotL, viewDirectionWS, normalWS);
     qNdotL += isIsophote / (steps - 1);
 
-    if (isIsophote > 0)
-        isPixelPerfectDetail = max(isPixelPerfectDetail, 0.5);
+    // if (isIsophote > 0)
+    //     isPixelPerfectDetail = max(isPixelPerfectDetail, 0.5);
 
     // Mark band transition pixels (last pixel of the lit band)
-    if (steps > 0)
-    {
-        half baseBand = Quantize(steps, NdotL);
-        half bandLow = Quantize(steps, NdotL + fwidth(NdotL));
-        if (bandLow != baseBand)
-            isPixelPerfectDetail = max(isPixelPerfectDetail, 0.5);
-    }
+    // if (steps > 0)
+    // {
+    //     half baseBand = Quantize(steps, NdotL);
+    //     half bandLow = Quantize(steps, NdotL + fwidth(NdotL));
+    //     if (bandLow != baseBand)
+    //         isPixelPerfectDetail = max(isPixelPerfectDetail, 0.5);
+    // }
 
     half inShadow = (shadowAttenuation >= 0.5 ? 1 : 0);
 
