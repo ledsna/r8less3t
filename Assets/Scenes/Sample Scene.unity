@@ -20,8 +20,8 @@ RenderSettings:
   m_FogDensity: 0.005
   m_LinearFogStart: 45
   m_LinearFogEnd: 200
-  m_AmbientSkyColor: {r: 0.29016212, g: 0.50128454, b: 1.6625506, a: 1}
-  m_AmbientEquatorColor: {r: 1, g: 0.5711249, b: 0.30498737, a: 1}
+  m_AmbientSkyColor: {r: 0.29595143, g: 0.35825068, b: 1.6625507, a: 1}
+  m_AmbientEquatorColor: {r: 0.5, g: 0.28556246, b: 0.15249369, a: 1}
   m_AmbientGroundColor: {r: 0, g: 0, b: 0, a: 1}
   m_AmbientIntensity: 1
   m_AmbientMode: 0
@@ -351,7 +351,7 @@ Terrain:
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 3
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 1
+  m_ShadowCastingMode: 2
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 0
@@ -485,7 +485,7 @@ Light:
   serializedVersion: 12
   m_Type: 1
   m_Color: {r: 0.9019608, g: 0.85490197, b: 0.72156864, a: 1}
-  m_Intensity: 4
+  m_Intensity: 6
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -771,9 +771,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Feature.Grass::Grass.Core.GrassHolder
   _rootMeshMaterial: {fileID: 2100000, guid: 2dfa2a67c5ac67a4cb40da2796907586, type: 2}
-  lightmapIndex: 0
+  lightmapIndex: -1
   mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
   materialSystem:
+    variants:
+    - name: Grass
+      material: {fileID: 2100000, guid: 36c48e9c15b3e4c76ada08f93dd73b1a, type: 2}
+      kind: 0
+      weight: 0.001
+      useTextureColor: 0
+      clumpScale: 0
+      clumpThreshold: 0
+      clumpDensity: 0
+      seed: 0
+      normalNudgeProbability: 0
+      normalNudgeStrength: 0
     grassGroups:
     - material: {fileID: 2100000, guid: 36c48e9c15b3e4c76ada08f93dd73b1a, type: 2}
       weight: 10
@@ -791,18 +803,16 @@ MonoBehaviour:
     clusterScale: 1
     flowerClusterScale: 1
     grassNormalNudgeProbability: 0.01
+    grassClusterScale: 0.2
   normalLimit: 1
+  chunkGridResolution: 16
+  boundsPadding: 1
   renderingLayerMask: 8
-  depthCullingTree: 3
-  UseOctreeCulling: 1
-  UseGPUCulling: 1
-  drawBounds: 0
-  frustumCullingCompute: {fileID: 0}
+  maxDrawDistance: 200
+  drawBounds: 1
   GrassDataSource: {fileID: 5552072581454539892, guid: f9a7eff9704304efdb43602bebe715c9,
     type: 3}
   lastAttachedGrassDataSourcePath: Assets/Scenes/New Grass Data.grassdata
-  lastValueUseOctreeCulling: 1
-  lastDepthCullingTree: 3
   grassWasCleared: 0
 --- !u!1001 &224260104
 PrefabInstance:
@@ -1488,6 +1498,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: 6761e3ffae627ed41b250c0067e2ffa8,
         type: 3}
+      propertyPath: m_CastShadows
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 6761e3ffae627ed41b250c0067e2ffa8,
+        type: 3}
       propertyPath: m_StaticShadowCaster
       value: 1
       objectReference: {fileID: 0}
@@ -1504,7 +1519,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 6761e3ffae627ed41b250c0067e2ffa8,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 2147483647
+      value: 127
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2521,7 +2536,7 @@ Terrain:
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 3
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 1
+  m_ShadowCastingMode: 2
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 0
@@ -2714,7 +2729,7 @@ Terrain:
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 3
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 1
+  m_ShadowCastingMode: 2
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 0
@@ -3061,6 +3076,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: 8811281d3fb03234a9d3ce3e62dbd8cb,
         type: 3}
+      propertyPath: m_CastShadows
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 8811281d3fb03234a9d3ce3e62dbd8cb,
+        type: 3}
       propertyPath: m_StaticShadowCaster
       value: 1
       objectReference: {fileID: 0}
@@ -3077,7 +3097,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 8811281d3fb03234a9d3ce3e62dbd8cb,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 2147483647
+      value: 127
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -3350,7 +3370,7 @@ Terrain:
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 3
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 1
+  m_ShadowCastingMode: 2
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 0
@@ -4591,7 +4611,7 @@ Terrain:
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 3
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 1
+  m_ShadowCastingMode: 2
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 0
@@ -4751,6 +4771,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: 77eb9eba61ea7f24fba0909d37050893,
         type: 3}
+      propertyPath: m_CastShadows
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 77eb9eba61ea7f24fba0909d37050893,
+        type: 3}
       propertyPath: m_StaticShadowCaster
       value: 1
       objectReference: {fileID: 0}
@@ -4767,7 +4792,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 77eb9eba61ea7f24fba0909d37050893,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 2147483647
+      value: 127
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -4858,6 +4883,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: ed07bf6a291a6a242acdeafa1e74813a,
         type: 3}
+      propertyPath: m_CastShadows
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: ed07bf6a291a6a242acdeafa1e74813a,
+        type: 3}
       propertyPath: m_StaticShadowCaster
       value: 1
       objectReference: {fileID: 0}
@@ -4874,7 +4904,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: ed07bf6a291a6a242acdeafa1e74813a,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 2147483647
+      value: 127
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5214,6 +5244,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: d6d0c47a7b07fe34da2d911e5a1841f4,
         type: 3}
+      propertyPath: m_CastShadows
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: d6d0c47a7b07fe34da2d911e5a1841f4,
+        type: 3}
       propertyPath: m_StaticShadowCaster
       value: 1
       objectReference: {fileID: 0}
@@ -5230,7 +5265,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: d6d0c47a7b07fe34da2d911e5a1841f4,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 2147483647
+      value: 127
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5339,7 +5374,7 @@ Terrain:
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 3
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 1
+  m_ShadowCastingMode: 2
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 0
@@ -5432,7 +5467,7 @@ Terrain:
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 3
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 1
+  m_ShadowCastingMode: 2
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 0
@@ -6123,7 +6158,7 @@ PrefabInstance:
     - target: {fileID: 8491991744429909334, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.30339223
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8491991744429909334, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
@@ -6133,7 +6168,7 @@ PrefabInstance:
     - target: {fileID: 8491991744429909334, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.9528658
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8491991744429909334, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
@@ -6148,7 +6183,7 @@ PrefabInstance:
     - target: {fileID: 8491991744429909334, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 180
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8491991744429909334, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
@@ -6381,6 +6416,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: 717ccb0f9134f504abe0bfca96d3ba86,
         type: 3}
+      propertyPath: m_CastShadows
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 717ccb0f9134f504abe0bfca96d3ba86,
+        type: 3}
       propertyPath: m_StaticShadowCaster
       value: 1
       objectReference: {fileID: 0}
@@ -6397,7 +6437,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 717ccb0f9134f504abe0bfca96d3ba86,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 2147483647
+      value: 127
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6763,6 +6803,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: ca27b8116e6cde54fbf60ff83f3fa289,
         type: 3}
+      propertyPath: m_CastShadows
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: ca27b8116e6cde54fbf60ff83f3fa289,
+        type: 3}
       propertyPath: m_StaticShadowCaster
       value: 1
       objectReference: {fileID: 0}
@@ -6779,7 +6824,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: ca27b8116e6cde54fbf60ff83f3fa289,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 2147483647
+      value: 127
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -7233,7 +7278,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1962547856
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7603,7 +7648,7 @@ Terrain:
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 3
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 1
+  m_ShadowCastingMode: 2
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 0
@@ -7716,7 +7761,7 @@ Terrain:
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 3
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 1
+  m_ShadowCastingMode: 2
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 0
@@ -7974,7 +8019,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 127
   m_IsActive: 1
 --- !u!23 &124806032682975438
 MeshRenderer:
@@ -8336,14 +8381,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4254914719877248578}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.08715578, y: 0, z: 0, w: 0.9961947}
+  m_LocalRotation: {x: 0, y: 0.9961947, z: -0.08715578, w: 0}
   m_LocalPosition: {x: 22.72985, y: 5.036641, z: -52.169773}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8474104394367787867}
   m_Father: {fileID: 3271515690912437351}
-  m_LocalEulerAnglesHint: {x: 10, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 10, y: 180, z: 0}
 --- !u!1 &760759908978988102
 GameObject:
   m_ObjectHideFlags: 0
@@ -8910,7 +8955,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 116147255021669457}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 2
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 1
@@ -9241,7 +9286,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 127
   m_IsActive: 1
 --- !u!223 &4593988069032659444
 Canvas:
@@ -9865,7 +9910,7 @@ Transform:
   m_GameObject: {fileID: 116147255021669457}
   serializedVersion: 2
   m_LocalRotation: {x: 0.2980158, y: -0.6140691, z: -0.6466126, w: -0.3405848}
-  m_LocalPosition: {x: 13.415001, y: -2.146983, z: -0.99866104}
+  m_LocalPosition: {x: 13.407, y: -2.398, z: -1.016}
   m_LocalScale: {x: 319.30682, y: 319.30676, z: 319.3067}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -10334,7 +10379,7 @@ Transform:
   m_GameObject: {fileID: 2263123133238984376}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 3, z: -18}
+  m_LocalPosition: {x: 0, y: 0, z: -18}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -10669,7 +10714,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4571484819679654559}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 2
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 1

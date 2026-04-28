@@ -103,7 +103,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0a09e9b48a42946a78b866638db51d87, type: 3}
   m_Name: SSRPrepassFeature
   m_EditorClassIdentifier: Features::Ledsna.SSR.SSRPrepassFeature
-  m_Active: 1
+  m_Active: 0
   settings:
     waterLayer:
       serializedVersion: 2

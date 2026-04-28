@@ -12,8 +12,6 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
-  - DIRLIGHTMAP_COMBINED
-  - LIGHTMAP_ON
   - LIGHTMAP_SHADOW_MIXING
   - SHADOWS_SHADOWMASK
   - _ALPHATEST_ON
@@ -130,7 +128,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _AlphaClip: 1
-    - _AlphaToMask: 0
+    - _AlphaToMask: 1
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
@@ -165,7 +163,7 @@ Material:
     - _RingOffset: 1
     - _RingWidth: 1
     - _SaturationSteps: 8
-    - _Scale: 0.7
+    - _Scale: 0.6
     - _ShadowSteps: -1
     - _Smoothness: 0.2
     - _SpecularHighlights: 1

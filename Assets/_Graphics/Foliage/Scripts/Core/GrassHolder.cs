@@ -1,992 +1,632 @@
 using System;
 using System.Collections.Generic;
-using UnityEditor;
-using UnityEngine;
 using __Project.Shared.Attributes;
+using UnityEngine;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace Grass.Core
 {
-
-    [Serializable]
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    public struct GrassData
-    {
-        public Vector3 position;
-        public Vector3 normal;
-        public Vector2 lightmapUV;
-        public int materialIndex;
-
-        public GrassData(Vector3 pos, Vector3 norm, Vector2 lmUV, int matIndex = 0)
-        {
-            position = pos;
-            normal = norm;
-            lightmapUV = lmUV;
-            materialIndex = matIndex;
-        }
-    }
-
     [ExecuteAlways]
     public class GrassHolder : MonoBehaviour
     {
         private static readonly int SourcePositionGrass = Shader.PropertyToID("_SourcePositionGrass");
+        private static readonly int RotationScaleMatrix = Shader.PropertyToID("m_RS");
+        private static readonly int Scale = Shader.PropertyToID("_Scale");
+        private static readonly int InstancedBaseId = Shader.PropertyToID("_InstancedBaseID");
+        private static readonly int FlowerSizeMultiplier = Shader.PropertyToID("_FlowerSizeMultiplier");
+        private static readonly int FlowerSizeVariation = Shader.PropertyToID("_FlowerSizeVariation");
+        private static readonly int FlowerCameraNudge = Shader.PropertyToID("_FlowerCameraNudge");
+
+        private static readonly string[] RootMaterialProperties =
+        {
+            "_DiffuseSpecularCelShader", "_DiffuseSteps", "_FresnelSteps", "_SpecularStep",
+            "_DistanceSteps", "_ShadowSteps", "_ReflectionSteps",
+            "_Surface", "_Blend", "_Cull", "_Cutoff", "_SrcBlend", "_DstBlend",
+            "_SrcBlendAlpha", "_DstBlendAlpha", "_ZWrite", "_BlendModePreserveSpecular", "_AlphaToMask",
+            "_BaseColor", "_BaseMap", "_SpecColor", "_WorkflowMode", "_Smoothness", "_Metallic",
+            "_MetallicGlossMap", "_SpecGlossMap", "_BumpScale", "_BumpMap", "_OcclusionStrength",
+            "_OcclusionMap", "_EmissionColor", "_EmissionMap", "_OutlineColour", "_OutlineStrength",
+            "_DebugOn", "_External", "_Convex", "_Concave", "_DepthThreshold", "_NormalsThreshold",
+            "_ExternalScale", "_InternalScale"
+        };
+
         [NonSerialized] public List<GrassData> grassData = new();
         [HideInInspector] public Material _rootMeshMaterial;
+        [HideInInspector] public int lightmapIndex = -1;
 
-        // Lightmapping
-        [HideInInspector] public int lightmapIndex;
-
-        // Properties
         [SerializeField] private Mesh mesh;
 
         [Header("Material Variants")]
-        [SerializeField]
-        public GrassMaterialSystem materialSystem = new GrassMaterialSystem();
+        [SerializeField] public GrassMaterialSystem materialSystem = new();
 
         [Header("Generation Settings")]
-        [SerializeField, Range(0f, 1f)]
-        public float normalLimit = 0.1f;
+        [SerializeField, Range(0f, 1f)] public float normalLimit = 0.1f;
+
+        [Header("Runtime Layout")]
+        [SerializeField, Range(1, 64)] private int chunkGridResolution = 16;
+        [SerializeField, Min(0f)] private float boundsPadding = 2f;
 
         [Header("Rendering")]
-        [SerializeField]
-        public uint renderingLayerMask = 1;
-
-        [Header("Culling")]
-        [SerializeField, Range(1, 6)] private int depthCullingTree = 3;
-        [SerializeField] public bool UseOctreeCulling;
-        [SerializeField] public bool UseGPUCulling = true; // GPU compute shader culling
+        [SerializeField] public uint renderingLayerMask = 1;
+        [SerializeField, Min(0f)] private float maxDrawDistance = 0f;
         [SerializeField] private bool drawBounds;
-        [SerializeField] private ComputeShader frustumCullingCompute;
+        [SerializeField] private bool highlightRenderedCells = true;
 
         [FileAsset(".grassdata"), SerializeField]
         public GrassDataAsset GrassDataSource;
 
         [SerializeField, HideInInspector] private string lastAttachedGrassDataSourcePath;
-        [SerializeField, HideInInspector] private bool lastValueUseOctreeCulling;
-        [SerializeField, HideInInspector] private int lastDepthCullingTree;
-        [SerializeField, HideInInspector] private bool grassWasCleared = false;
+        [SerializeField, HideInInspector] private bool grassWasCleared;
 
-        // Material of the surface on which the grass is being instanced
-
-        // Material-specific rendering data
-        private class MaterialRenderData
+        private sealed class MaterialRenderData
         {
+            public int materialIndex;
             public Material material;
-            public List<GrassData> grassDataForMaterial;
-            public ComputeBuffer buffer;
-            public GraphicsBuffer commandBuffer;
-            public GraphicsBuffer.IndirectDrawIndexedArgs[] commandBufferData;
+            public MaterialPropertyBlock propertyBlock;
             public RenderParams renderParams;
-            public MaterialPropertyBlock materialPropertyBlock;
+            public GraphicsBuffer commandBuffer;
+            public GraphicsBuffer.IndirectDrawIndexedArgs[] commands;
+            public int visibleCommandCount;
         }
 
-        // Buffers And GPU Instance Components (for single material or fallback)
-        private ComputeBuffer _sourcePositionGrass;
-        private GraphicsBuffer _commandBuffer;
-        private GraphicsBuffer.IndirectDrawIndexedArgs[] _bufferData;
-        private RenderParams _renderParams;
-        private MaterialPropertyBlock _materialPropertyBlock;
-        private Bounds grassBounds;
-
-        // Multi-material rendering
-        private List<MaterialRenderData> _materialRenderDataList = new List<MaterialRenderData>();
-        private bool _useMultiMaterial = false;
-
-        // Precomputed Rotation * Scale Matrix 
-        private Matrix4x4 _rotationScaleMatrix;
-
-        // Main Camera
-        private Camera _mainCamera = null;
-
-        // For no reason Camera.Main always zero. So made field for inspector to plug 
-
-        // Stride For Grass Data Buffer
-        private const int GrassDataStride = sizeof(float) * (3 + 3 + 2) + sizeof(int); // position(3) + normal(3) + lightmapUV(2) + materialIndex(1)
-
-        // Initialized State
+        private GrassRuntimeData _runtimeData;
+        private ComputeBuffer _instanceBuffer;
+        private MaterialRenderData[] _renderDataByMaterial = Array.Empty<MaterialRenderData>();
+        private readonly List<MaterialRenderData> _renderDataList = new();
+        private readonly Plane[] _frustumPlanes = new Plane[6];
+        private Camera _mainCamera;
+        private Vector3 _cachedCameraPosition;
+        private Quaternion _cachedCameraRotation;
+        private bool[] _visibleChunks = Array.Empty<bool>();
+        private int _visibleChunkCount;
+        private int _visibleRangeCount;
+        private int _visibleDrawCommandCount;
+        private bool _commandsDirty = true;
         private bool _initialized;
 
-        // Grass Culling Tree
-        // ------------------
-        [NonSerialized] private GrassCullingTree cullingTree;
-        Plane[] cameraFrustumPlanes = new Plane[6];
-        float cameraOriginalFarPlane;
-        Vector3 cachedCamPos;
-        Quaternion cachedCamRot;
+#if UNITY_EDITOR
+        private SceneView _sceneView;
+#endif
 
-        // GPU Culling Buffers
-        private ComputeBuffer _chunkDataBuffer;
-        private ComputeBuffer _visibleChunksBuffer;
-        private ComputeBuffer _visibleChunkCountBuffer;
-        private int _frustumCullKernel;
-
-        private int maxBufferSize = 2500000;
-        // ------------------
-
-        #region Setup and Rendering
+        public int ChunkGridResolution => chunkGridResolution;
+        public float BoundsPadding => boundsPadding;
+        public int VisibleChunkCount => _visibleChunkCount;
+        public int TotalChunkCount => _runtimeData?.chunks?.Length ?? 0;
+        public int VisibleRangeCount => _visibleRangeCount;
+        public int VisibleDrawCommandCount => _visibleDrawCommandCount;
+        public int TotalRangeCount => _runtimeData?.ranges?.Length ?? 0;
 
         public void FastSetup()
         {
-#if UNITY_EDITOR
-            SceneView.duringSceneGui += OnScene;
-            if (!Application.isPlaying)
-            {
-                if (_view is not null)
-                {
-                    _mainCamera = _view.camera;
-                }
-            }
-#endif
-            if (Application.isPlaying)
-            {
-                _mainCamera = Camera.main;
-            }
+            EnsureCamera();
 
             if (_initialized)
-                Release(false);
+                ReleaseRuntimeResources();
 
             if (grassData.Count == 0)
-            {
-                return;
-            }
-
-            InitBuffers();
-        }
-
-        private void InitBuffers()
-        {
-            grassBounds = GetGrassBound();
-            _rotationScaleMatrix.SetColumn(3, new Vector4(0, 0, 0, 1));
-
-            // Material system is now required
-            if (materialSystem == null || !materialSystem.IsValid())
-            {
-                Debug.LogError($"GrassHolder on {gameObject.name}: Material system is not configured! Please set up material variants in the Material Variants section.", this);
-                return;
-            }
-
-            _useMultiMaterial = true;
-            InitMultiMaterialBuffers();
-            _initialized = true;
-        }
-
-        private void InitMultiMaterialBuffers()
-        {
-            _materialRenderDataList.Clear();
-
-            Material[] materials = materialSystem.GetAllMaterials();
-
-            if (materials.Length == 0)
-            {
-                Debug.LogError($"GrassHolder on {gameObject.name}: Material system is valid but returned no materials!", this);
-                return;
-            }
-
-            // Debug.Log($"GrassHolder on {gameObject.name}: Setting up {materials.Length} materials for {grassData.Count} grass instances");
-
-            // OPTIMIZED: Group grass data by material index in ONE pass (O(n) instead of O(n*m))
-            var grassByMaterial = new Dictionary<int, List<GrassData>>();
-
-            // Single pass through all grass data
-            foreach (var grass in grassData)
-            {
-                if (!grassByMaterial.ContainsKey(grass.materialIndex))
-                    grassByMaterial[grass.materialIndex] = new List<GrassData>();
-                grassByMaterial[grass.materialIndex].Add(grass);
-            }
-
-            // Create buffers for each material that has instances
-            for (int matIndex = 0; matIndex < materials.Length; matIndex++)
-            {
-                if (!grassByMaterial.TryGetValue(matIndex, out var grassForMaterial) || grassForMaterial.Count == 0)
-                {
-                    // Debug.Log($"  Material {matIndex} ({materials[matIndex].name}): 0 instances (skipped)");
-                    continue;
-                }
-
-                // Debug.Log($"  Material {matIndex} ({materials[matIndex].name}): {grassForMaterial.Count} instances");
-
-                var renderData = new MaterialRenderData
-                {
-                    material = materials[matIndex],
-                    grassDataForMaterial = grassForMaterial
-                };
-
-                // Setup buffer for this material
-                renderData.buffer = new ComputeBuffer(
-                    Mathf.Max(1, grassForMaterial.Count),
-                    GrassDataStride,
-                    ComputeBufferType.Structured,
-                    ComputeBufferMode.Immutable);
-                renderData.buffer.SetData(grassForMaterial);
-
-                // Setup material property block
-                renderData.materialPropertyBlock = new MaterialPropertyBlock();
-                renderData.materialPropertyBlock.SetBuffer(SourcePositionGrass, renderData.buffer);
-
-                // Copy only specific properties from root material
-                CopySelectiveProperties(renderData.material, _rootMeshMaterial);
-
-                // Assign a globally unique Base ID for this grass patch
-                uint patchBaseID = 0; //global::WriteRendererID.GetNextID();
-                renderData.materialPropertyBlock.SetFloat("_InstancedBaseID", patchBaseID);
-
-                if (_rootMeshMaterial != null)
-                {
-                    if (_rootMeshMaterial.IsKeywordEnabled("_REFLECTION_PROBE_BLENDING"))
-                        renderData.material.EnableKeyword("_REFLECTION_PROBE_BLENDING");
-                    else
-                        renderData.material.DisableKeyword("_REFLECTION_PROBE_BLENDING");
-
-                    if (_rootMeshMaterial.IsKeywordEnabled("_REFLECTION_PROBE_BOX_PROJECTION"))
-                        renderData.material.EnableKeyword("_REFLECTION_PROBE_BOX_PROJECTION");
-                    else
-                        renderData.material.DisableKeyword("_REFLECTION_PROBE_BOX_PROJECTION");
-                }
-
-                renderData.material.EnableKeyword("_ALPHATEST_ON");
-
-                if (lightmapIndex >= 0 && LightmapSettings.lightmaps.Length > 0)
-                {
-                    renderData.material.EnableKeyword("LIGHTMAP_ON");
-                    if (LightmapSettings.lightmapsMode == LightmapsMode.CombinedDirectional)
-                        renderData.material.EnableKeyword("DIRLIGHTMAP_COMBINED");
-                    else
-                        renderData.material.DisableKeyword("DIRLIGHTMAP_COMBINED");
-                    renderData.material.EnableKeyword("MAIN_LIGHT_CALCULATE_SHADOWS");
-
-                    // CRITICAL: Bind lightmap and shadowmask textures for instanced rendering
-                    var lightmapData = LightmapSettings.lightmaps[lightmapIndex];
-                    if (lightmapData.lightmapColor != null)
-                    {
-                        // Set lightmap textures via MaterialPropertyBlock for instanced rendering
-                        renderData.materialPropertyBlock.SetTexture("unity_Lightmap", lightmapData.lightmapColor);
-                        if (lightmapData.lightmapDir != null)
-                            renderData.materialPropertyBlock.SetTexture("unity_LightmapInd", lightmapData.lightmapDir);
-
-                        // Set lightmap scale/offset (critical for correct UV sampling)
-                        renderData.materialPropertyBlock.SetVector("unity_LightmapST", new Vector4(1, 1, 0, 0));
-
-                        // THIS IS THE KEY ONE FOR SHADOWMASK!
-                        if (lightmapData.shadowMask != null)
-                        {
-                            renderData.materialPropertyBlock.SetTexture("unity_ShadowMask", lightmapData.shadowMask);
-
-                            // Enable shadowmask keywords based on quality settings
-                            renderData.material.EnableKeyword("SHADOWS_SHADOWMASK");
-
-                            // LIGHTMAP_SHADOW_MIXING: Distance Shadowmask mode (blends realtime shadows at distance)
-                            // SHADOWS_SHADOWMASK: Pure shadowmask mode (fully baked)
-                            if (QualitySettings.shadowmaskMode == ShadowmaskMode.DistanceShadowmask)
-                                renderData.material.EnableKeyword("LIGHTMAP_SHADOW_MIXING");
-                            else
-                                renderData.material.DisableKeyword("LIGHTMAP_SHADOW_MIXING");
-                        }
-                    }
-                }
-                else
-                {
-                    renderData.material.DisableKeyword("LIGHTMAP_ON");
-                    renderData.material.DisableKeyword("DIRLIGHTMAP_COMBINED");
-                }
-
-
-                // Setup render params
-                renderData.renderParams = new RenderParams(renderData.material)
-                {
-                    layer = gameObject.layer,
-                    renderingLayerMask = renderingLayerMask,
-                    worldBounds = grassBounds,
-                    matProps = renderData.materialPropertyBlock,
-                    reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes
-                };
-
-                // Setup command buffer (do this once, not every frame!)
-                renderData.commandBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1,
-                    GraphicsBuffer.IndirectDrawIndexedArgs.size);
-                renderData.commandBufferData = new GraphicsBuffer.IndirectDrawIndexedArgs[1];
-                renderData.commandBufferData[0].indexCountPerInstance = 6;
-                renderData.commandBufferData[0].instanceCount = (uint)grassForMaterial.Count;
-                renderData.commandBuffer.SetData(renderData.commandBufferData);
-
-                _materialRenderDataList.Add(renderData);
-            }
-
-            // Set global scale from first material
-            if (materials.Length > 0)
-                Shader.SetGlobalFloat("_Scale", materials[0].GetFloat("_Scale"));
-
-            // Debug.Log($"GrassHolder: Successfully initialized {_materialRenderDataList.Count} material groups");
-        }
-
-        private void Setup()
-        {
-#if UNITY_EDITOR
-            SceneView.duringSceneGui += OnScene;
-            if (!Application.isPlaying)
-            {
-                if (_view is not null)
-                {
-                    _mainCamera = _view.camera;
-                }
-            }
-#endif
-
-            if (Application.isPlaying)
-            {
-                _mainCamera = Camera.main;
-            }
-
-            // Skip loading if no grass data source is assigned (e.g. newly created component)
-            if (GrassDataSource == null)
                 return;
 
-            // Only load from file if grass data is empty AND grass was not explicitly cleared
-            // This prevents auto-loading after grass was cleared by user
-            if (grassData.Count == 0 && !grassWasCleared)
-            {
-                // Debug.Log("[GrassHolder] FastSetup: Attempting to load grass data from file...");
-                if (!GrassDataManager.TryLoadGrassData(this) || grassData.Count == 0)
-                {
-                    // Debug.LogWarning("[GrassHolder] FastSetup: Failed to load grass data or no grass instances found");
-                    return;
-                }
-            }
-            else
-            {
-                // Debug.Log($"[GrassHolder] FastSetup: Skipping load (already have {grassData.Count} instances or was cleared)");
-            }
-
-            if (UseOctreeCulling)
-            {
-                CreateGrassCullingTree(depthCullingTree);
-                cullingTree.SortGrassDataIntoChunks();
-
-                // Initialize GPU culling if enabled
-                if (UseGPUCulling && frustumCullingCompute != null)
-                {
-                    InitGPUCulling();
-                }
-            }
-
-            InitBuffers();
+            ApplyLoadedData(CreateBakedDataFromMemory(), replaceSourceList: false);
+            InitRenderer();
         }
 
-        [ExecuteAlways]
-        private void Update()
+        public GrassRuntimeData CreateBakedDataFromMemory()
         {
-            if (!_initialized)
-                return;
-
-            UpdateMultiMaterial();
+            int materialCount = materialSystem != null ? materialSystem.TotalMaterialCount : 0;
+            return GrassRuntimeBuilder.Build(grassData, materialCount, chunkGridResolution, boundsPadding, lightmapIndex);
         }
 
-        private void UpdateMultiMaterial()
+        public void ApplyLoadedData(GrassRuntimeData runtimeData, bool replaceSourceList = true)
         {
-            if (_materialRenderDataList == null || _materialRenderDataList.Count == 0)
-                return;
+            _runtimeData = runtimeData;
+            lightmapIndex = runtimeData?.lightmapIndex ?? -1;
 
-            // Render each material group with its own scale
-            foreach (var renderData in _materialRenderDataList)
-            {
-                if (renderData.material == null || renderData.commandBuffer == null)
-                    continue;
-
-                // Get the scale for this specific material
-                float materialScale = renderData.material.GetFloat("_Scale");
-
-                // Update rotation matrix for this material's scale
-                UpdateRotationScaleMatrix(materialScale);
-                renderData.material.SetMatrix("m_RS", _rotationScaleMatrix);
-
-                // Set flower properties globally for Setup() function to access
-                if (renderData.material.HasProperty("_FlowerSizeMultiplier"))
-                    Shader.SetGlobalFloat("_FlowerSizeMultiplier", renderData.material.GetFloat("_FlowerSizeMultiplier"));
-                if (renderData.material.HasProperty("_FlowerSizeVariation"))
-                    Shader.SetGlobalFloat("_FlowerSizeVariation", renderData.material.GetFloat("_FlowerSizeVariation"));
-
-                Graphics.RenderMeshIndirect(renderData.renderParams, mesh, renderData.commandBuffer, 1);
-            }
+            if (replaceSourceList)
+                grassData = runtimeData?.instances != null ? new List<GrassData>(runtimeData.instances) : new List<GrassData>();
         }
 
-        private void PrepareCommandBuffer()
+        public void ClearRuntimeData()
         {
-            if (_mainCamera == null)
-                return;
-
-            // if the camera didnt move, we dont need to change the culling;
-            if (cachedCamRot == _mainCamera.transform.rotation && cachedCamPos == _mainCamera.transform.position &&
-                Application.isPlaying)
-            {
-                return;
-            }
-
-
-            _commandBuffer?.Release();
-            _commandBuffer = null;
-            // Octree culling work only in build, but this behaviour can be changed
-            if (Application.isPlaying)
-            {
-                if (UseOctreeCulling)
-                {
-                    // Use GPU culling if enabled
-                    if (UseGPUCulling && frustumCullingCompute != null && _chunkDataBuffer != null)
-                    {
-                        PerformGPUCulling();
-
-                        // cache camera position to skip culling when not moved
-                        cachedCamPos = _mainCamera.transform.position;
-                        cachedCamRot = _mainCamera.transform.rotation;
-                        return;
-                    }
-
-                    // Fallback to CPU culling
-                    var buffers = new List<GraphicsBuffer.IndirectDrawIndexedArgs>();
-                    GeometryUtility.CalculateFrustumPlanes(_mainCamera, cameraFrustumPlanes);
-                    foreach (var chunkIndex in cullingTree.GetVisibleChunkIndices(cameraFrustumPlanes))
-                    {
-                        var buffer = new GraphicsBuffer.IndirectDrawIndexedArgs();
-                        buffer.instanceCount = cullingTree.Chunks[chunkIndex].InstanceCount;
-                        buffer.startInstance = cullingTree.Chunks[chunkIndex].StartInstance;
-                        buffer.indexCountPerInstance = 6;
-                        buffers.Add(buffer);
-                    }
-
-                    if (buffers.Count == 0)
-                        return;
-
-                    _commandBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, buffers.Count,
-                        GraphicsBuffer.IndirectDrawIndexedArgs.size);
-                    _commandBuffer.SetData(buffers.ToArray());
-                    return;
-                }
-            }
-
-            _commandBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1,
-                GraphicsBuffer.IndirectDrawIndexedArgs.size);
-            _bufferData = new GraphicsBuffer.IndirectDrawIndexedArgs[1];
-            _bufferData[0].indexCountPerInstance = 6;
-            _bufferData[0].instanceCount = (uint)grassData.Count;
-            _commandBuffer.SetData(_bufferData);
-
-            // cache camera position to skip culling when not moved
-            cachedCamPos = _mainCamera.transform.position;
-            cachedCamRot = _mainCamera.transform.rotation;
+            _runtimeData = null;
+            _commandsDirty = true;
         }
 
-        #endregion
-
-        private void CreateGrassCullingTree(int depth = 3)
-        {
-            if (cullingTree != null)
-            {
-                cullingTree.Release();
-            }
-
-            // Init culling tree
-            cullingTree =
-                new GrassCullingTree(
-                    GetGrassBound(),
-                    depth, this
-                );
-        }
-
-        private Bounds GetGrassBound(float extrude = 0.5f)
-        {
-            var mostLeftBottom = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-            var mostRightTop = new Vector3(float.MinValue, float.MinValue, float.MinValue);
-            foreach (var data in grassData)
-            {
-                var position = data.position;
-                mostLeftBottom.x = Mathf.Min(mostLeftBottom.x, position.x);
-                mostLeftBottom.y = Mathf.Min(mostLeftBottom.y, position.y);
-                mostLeftBottom.z = Mathf.Min(mostLeftBottom.z, position.z);
-
-                mostRightTop.x = Mathf.Max(mostRightTop.x, position.x);
-                mostRightTop.y = Mathf.Max(mostRightTop.y, position.y);
-                mostRightTop.z = Mathf.Max(mostRightTop.z, position.z);
-            }
-
-            return new Bounds((mostLeftBottom + mostRightTop) / 2,
-                mostRightTop - mostLeftBottom + Vector3.one * extrude);
-        }
-
-        // GPU Culling struct to match compute shader
-        private struct GPUChunkData
-        {
-            public Vector3 boundsCenter;
-            public Vector3 boundsExtents;
-            public uint startInstance;
-            public uint instanceCount;
-        }
-
-        private struct GPUVisibleChunk
-        {
-            public uint chunkIndex;
-            public uint startInstance;
-            public uint instanceCount;
-        }
-
-        private void InitGPUCulling()
-        {
-            if (cullingTree == null || frustumCullingCompute == null)
-                return;
-
-            // Get kernel
-            _frustumCullKernel = frustumCullingCompute.FindKernel("FrustumCull");
-
-            int chunkCount = cullingTree.Chunks.Count;
-
-            // Create chunk data buffer
-            GPUChunkData[] chunkData = new GPUChunkData[chunkCount];
-
-            // Flatten octree to linear array for GPU
-            for (int i = 0; i < chunkCount; i++)
-            {
-                var chunk = cullingTree.Chunks[i];
-                var bounds = GetChunkBounds(i);
-
-                chunkData[i] = new GPUChunkData
-                {
-                    boundsCenter = bounds.center,
-                    boundsExtents = bounds.extents,
-                    startInstance = chunk.StartInstance,
-                    instanceCount = chunk.InstanceCount
-                };
-            }
-
-            // Create GPU buffers
-            _chunkDataBuffer = new ComputeBuffer(chunkCount, sizeof(float) * 6 + sizeof(uint) * 2);
-            _chunkDataBuffer.SetData(chunkData);
-
-            _visibleChunksBuffer = new ComputeBuffer(chunkCount, sizeof(uint) * 3);
-            _visibleChunkCountBuffer = new ComputeBuffer(1, sizeof(uint));
-
-            // Bind buffers to compute shader
-            frustumCullingCompute.SetBuffer(_frustumCullKernel, "_ChunkBuffer", _chunkDataBuffer);
-            frustumCullingCompute.SetBuffer(_frustumCullKernel, "_VisibleChunks", _visibleChunksBuffer);
-            frustumCullingCompute.SetBuffer(_frustumCullKernel, "_VisibleChunkCount", _visibleChunkCountBuffer);
-        }
-
-        private Bounds GetChunkBounds(int chunkIndex)
-        {
-            // Traverse octree to find the leaf node for this chunk
-            return TraverseFindChunkBounds(cullingTree, chunkIndex);
-        }
-
-        private Bounds TraverseFindChunkBounds(GrassCullingTree node, int targetIndex)
-        {
-            if (node.children.Count == 0)
-            {
-                // Leaf node - check if it matches our target index
-                // Note: We need to match against the chunk list position
-                foreach (var chunk in node.Chunks)
-                {
-                    if (cullingTree.Chunks.IndexOf(chunk) == targetIndex)
-                        return node.bounds;
-                }
-            }
-            else
-            {
-                // Recurse into children
-                foreach (var child in node.children)
-                {
-                    var result = TraverseFindChunkBounds(child, targetIndex);
-                    if (result.size != Vector3.zero)
-                        return result;
-                }
-            }
-
-            return new Bounds(); // Not found
-        }
-
-        private void PerformGPUCulling()
-        {
-            if (_chunkDataBuffer == null || _mainCamera == null)
-                return;
-
-            // Reset visible count
-            uint[] zeroCount = new uint[] { 0 };
-            _visibleChunkCountBuffer.SetData(zeroCount);
-
-            // Calculate frustum planes
-            GeometryUtility.CalculateFrustumPlanes(_mainCamera, cameraFrustumPlanes);
-
-            // Convert Unity Plane format to float4 for compute shader
-            Vector4[] frustumPlanes = new Vector4[6];
-            for (int i = 0; i < 6; i++)
-            {
-                frustumPlanes[i] = new Vector4(
-                    cameraFrustumPlanes[i].normal.x,
-                    cameraFrustumPlanes[i].normal.y,
-                    cameraFrustumPlanes[i].normal.z,
-                    cameraFrustumPlanes[i].distance
-                );
-            }
-
-            frustumCullingCompute.SetVectorArray("_FrustumPlanes", frustumPlanes);
-
-            // Dispatch compute shader
-            int threadGroups = Mathf.CeilToInt(cullingTree.Chunks.Count / 64f);
-            frustumCullingCompute.Dispatch(_frustumCullKernel, threadGroups, 1, 1);
-
-            // Read back visible chunks
-            uint[] visibleCount = new uint[1];
-            _visibleChunkCountBuffer.GetData(visibleCount);
-
-            if (visibleCount[0] == 0)
-                return;
-
-            GPUVisibleChunk[] visibleChunks = new GPUVisibleChunk[visibleCount[0]];
-            _visibleChunksBuffer.GetData(visibleChunks, 0, 0, (int)visibleCount[0]);
-
-            // Build command buffer from visible chunks
-            var buffers = new List<GraphicsBuffer.IndirectDrawIndexedArgs>((int)visibleCount[0]);
-            for (int i = 0; i < visibleCount[0]; i++)
-            {
-                var visibleChunk = visibleChunks[i];
-                var buffer = new GraphicsBuffer.IndirectDrawIndexedArgs();
-                buffer.instanceCount = visibleChunk.instanceCount;
-                buffer.startInstance = visibleChunk.startInstance;
-                buffer.indexCountPerInstance = 6;
-                buffers.Add(buffer);
-            }
-
-            _commandBuffer?.Release();
-            _commandBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, buffers.Count,
-                GraphicsBuffer.IndirectDrawIndexedArgs.size);
-            _commandBuffer.SetData(buffers.ToArray());
-        }
-
-        #region F1Soda magic pls document
-
-        public void Release(bool full = true)
-        {
-            try
-            {
-                _sourcePositionGrass?.Release();
-            }
-            catch { }
-
-            try
-            {
-                _commandBuffer?.Release();
-            }
-            catch { }
-
-            _commandBuffer = null;
-            _materialPropertyBlock?.Clear();
-            _bufferData = null;
-
-            try
-            {
-                cullingTree?.Release();
-            }
-            catch { }
-            cullingTree = null;
-
-            // Release GPU culling buffers
-            try
-            {
-                _chunkDataBuffer?.Release();
-                _visibleChunksBuffer?.Release();
-                _visibleChunkCountBuffer?.Release();
-            }
-            catch { }
-
-            _chunkDataBuffer = null;
-            _visibleChunksBuffer = null;
-            _visibleChunkCountBuffer = null;
-
-            // Release multi-material buffers
-            if (_materialRenderDataList != null)
-            {
-                foreach (var renderData in _materialRenderDataList)
-                {
-                    try
-                    {
-                        renderData.buffer?.Release();
-                    }
-                    catch { }
-
-                    try
-                    {
-                        renderData.commandBuffer?.Release();
-                    }
-                    catch { }
-
-                    renderData.materialPropertyBlock?.Clear();
-                }
-                _materialRenderDataList.Clear();
-            }
-
-            // Clear material cache to prevent memory leaks
-            try
-            {
-                materialSystem?.InvalidateCache();
-            }
-            catch { }
-
-            if (full && grassData != null)
-                grassData.Clear();
-        }
-
-        private void UpdateRotationScaleMatrix(float scale)
-        {
-            if (_mainCamera == null || _mainCamera.transform.rotation == cachedCamRot)
-            {
-                return;
-            }
-
-            _rotationScaleMatrix.SetColumn(0, _mainCamera.transform.right * scale);
-            _rotationScaleMatrix.SetColumn(1, _mainCamera.transform.up * scale);
-            _rotationScaleMatrix.SetColumn(2, _mainCamera.transform.forward * scale);
-        }
-
-        #endregion
-
-        #region Event Functions
-
-#if UNITY_EDITOR
-        SceneView _view;
-
-        void OnDestroy()
-        {
-            // When the window is destroyed, remove the delegate
-            // so that it will no longer do any drawing.
-            SceneView.duringSceneGui -= this.OnScene;
-        }
-
-        void OnScene(SceneView scene)
-        {
-            _view = scene;
-            if (!Application.isPlaying)
-            {
-                if (_view.camera != null)
-                {
-                    _mainCamera = _view.camera;
-                }
-            }
-            else
-            {
-                _mainCamera = Camera.main;
-            }
-        }
-
-        private void OnValidate()
-        {
-            if (!Application.isPlaying)
-            {
-                if (_view != null)
-                {
-                    _mainCamera = _view.camera;
-                }
-            }
-            else
-            {
-                _mainCamera = Camera.main;
-            }
-
-            if (lastAttachedGrassDataSourcePath != AssetDatabase.GetAssetPath(GrassDataSource))
-            {
-                OnEnable();
-                lastAttachedGrassDataSourcePath = AssetDatabase.GetAssetPath(GrassDataSource);
-            }
-
-
-            if (UseOctreeCulling != lastValueUseOctreeCulling)
-            {
-                if (UseOctreeCulling)
-                {
-                    CreateGrassCullingTree(depthCullingTree);
-                }
-                else
-                {
-                    cullingTree?.Release();
-                }
-
-                lastValueUseOctreeCulling = UseOctreeCulling;
-            }
-
-            if (depthCullingTree != lastDepthCullingTree)
-            {
-                CreateGrassCullingTree(depthCullingTree);
-
-                lastDepthCullingTree = depthCullingTree;
-            }
-        }
-#endif
-        public void OnEnable()
-        {
-            // Safety check: Don't initialize during script recompilation or if no data source
-            if (GrassDataSource == null)
-            {
-                Debug.LogWarning("[GrassHolder] OnEnable aborted: GrassDataSource is null");
-                return;
-            }
-
-            // Reset cleared flag when entering play mode - always load grass at runtime
-            if (Application.isPlaying)
-            {
-                // Debug.Log($"[GrassHolder] Resetting grassWasCleared flag (was: {grassWasCleared})");
-                grassWasCleared = false;
-            }
-
-            if (_initialized)
-            {
-                OnDisable();
-            }
-
-            try
-            {
-                Setup();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to initialize GrassHolder on {gameObject.name}: {e.Message}", this);
-                _initialized = false;
-            }
-        }
-
-        /// <summary>
-        /// Reinitialize the grass holder after loading data. Call this after manually loading grass data.
-        /// </summary>
         public void Reinitialize()
         {
-            try
-            {
-                OnDisable();
-                OnEnable();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to reinitialize GrassHolder on {gameObject.name}: {e.Message}", this);
-            }
+            OnDisable();
+            OnEnable();
         }
 
-        /// <summary>
-        /// Set the grass cleared flag to control auto-loading behavior
-        /// </summary>
         public void SetGrassClearedFlag(bool cleared)
         {
             grassWasCleared = cleared;
         }
 
-        /// <summary>
-        /// Copy only specific properties from source to destination material:
-        /// - Cel Shading Settings
-        /// - Surface Options
-        /// - Surface Inputs
-        /// </summary>
-        private void CopySelectiveProperties(Material dest, Material source)
+        private void InitRenderer()
         {
-            if (source == null || dest == null) return;
-
-            // Cel Shading Settings
-            CopyPropertyIfExists(dest, source, "_DiffuseSpecularCelShader");
-            CopyPropertyIfExists(dest, source, "_DiffuseSteps");
-            CopyPropertyIfExists(dest, source, "_FresnelSteps");
-            CopyPropertyIfExists(dest, source, "_SpecularStep");
-            CopyPropertyIfExists(dest, source, "_DistanceSteps");
-            CopyPropertyIfExists(dest, source, "_ShadowSteps");
-            CopyPropertyIfExists(dest, source, "_ReflectionSteps");
-
-            // Surface Options
-            CopyPropertyIfExists(dest, source, "_Surface");
-            CopyPropertyIfExists(dest, source, "_Blend");
-            CopyPropertyIfExists(dest, source, "_Cull");
-            CopyPropertyIfExists(dest, source, "_Cutoff");
-            // Don't copy _AlphaClip - billboards always need alpha clipping
-            CopyPropertyIfExists(dest, source, "_SrcBlend");
-            CopyPropertyIfExists(dest, source, "_DstBlend");
-            CopyPropertyIfExists(dest, source, "_SrcBlendAlpha");
-            CopyPropertyIfExists(dest, source, "_DstBlendAlpha");
-            CopyPropertyIfExists(dest, source, "_ZWrite");
-            CopyPropertyIfExists(dest, source, "_BlendModePreserveSpecular");
-            CopyPropertyIfExists(dest, source, "_AlphaToMask");
-
-            // Surface Inputs
-            CopyPropertyIfExists(dest, source, "_BaseColor");
-            CopyPropertyIfExists(dest, source, "_BaseMap");
-            CopyPropertyIfExists(dest, source, "_SpecColor");
-            CopyPropertyIfExists(dest, source, "_WorkflowMode");
-            CopyPropertyIfExists(dest, source, "_Smoothness");
-            CopyPropertyIfExists(dest, source, "_Metallic");
-            CopyPropertyIfExists(dest, source, "_MetallicGlossMap");
-            CopyPropertyIfExists(dest, source, "_SpecGlossMap");
-            CopyPropertyIfExists(dest, source, "_BumpScale");
-            CopyPropertyIfExists(dest, source, "_BumpMap");
-            CopyPropertyIfExists(dest, source, "_OcclusionStrength");
-            CopyPropertyIfExists(dest, source, "_OcclusionMap");
-            CopyPropertyIfExists(dest, source, "_EmissionColor");
-            CopyPropertyIfExists(dest, source, "_EmissionMap");
-        }
-
-        private void CopyPropertyIfExists(Material dest, Material source, string propertyName)
-        {
-            if (!source.HasProperty(propertyName) || !dest.HasProperty(propertyName))
+            if (_runtimeData == null || !_runtimeData.IsValid)
                 return;
 
-            // Check property type
-            var propertyType = source.shader.GetPropertyType(source.shader.FindPropertyIndex(propertyName));
+            if (mesh == null)
+                mesh = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
 
-            switch (propertyType)
+            if (mesh == null)
+            {
+                Debug.LogError($"GrassHolder on {gameObject.name}: no quad mesh assigned.", this);
+                return;
+            }
+
+            if (materialSystem == null || !materialSystem.IsValid())
+            {
+                Debug.LogError($"GrassHolder on {gameObject.name}: no grass material variants configured.", this);
+                return;
+            }
+
+            Material[] materials = materialSystem.GetAllMaterials();
+            if (materials.Length == 0)
+                return;
+
+            _instanceBuffer = new ComputeBuffer(_runtimeData.instances.Length, GrassRuntimeBuilder.GrassDataStride,
+                ComputeBufferType.Structured, ComputeBufferMode.Immutable);
+            _instanceBuffer.SetData(_runtimeData.instances);
+
+            _renderDataByMaterial = new MaterialRenderData[materials.Length];
+            _visibleChunks = new bool[_runtimeData.chunks.Length];
+            int[] rangeCountsByMaterial = CountRangesByMaterial(materials.Length);
+
+            for (int materialIndex = 0; materialIndex < materials.Length; materialIndex++)
+            {
+                if (materials[materialIndex] == null || rangeCountsByMaterial[materialIndex] == 0)
+                    continue;
+
+                var renderData = new MaterialRenderData
+                {
+                    materialIndex = materialIndex,
+                    material = materials[materialIndex],
+                    propertyBlock = new MaterialPropertyBlock(),
+                    commands = new GraphicsBuffer.IndirectDrawIndexedArgs[rangeCountsByMaterial[materialIndex]],
+                    commandBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments,
+                        rangeCountsByMaterial[materialIndex], GraphicsBuffer.IndirectDrawIndexedArgs.size)
+                };
+
+                SyncMaterialKeywords(renderData.material);
+                BindStaticMaterialProperties(renderData);
+
+                renderData.renderParams = new RenderParams(renderData.material)
+                {
+                    layer = gameObject.layer,
+                    renderingLayerMask = renderingLayerMask,
+                    worldBounds = _runtimeData.bounds,
+                    matProps = renderData.propertyBlock,
+                    reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes
+                };
+
+                _renderDataByMaterial[materialIndex] = renderData;
+                _renderDataList.Add(renderData);
+            }
+
+            _commandsDirty = true;
+            _initialized = _renderDataList.Count > 0;
+        }
+
+        private int[] CountRangesByMaterial(int materialCount)
+        {
+            int[] counts = new int[materialCount];
+
+            for (int i = 0; i < _runtimeData.ranges.Length; i++)
+            {
+                int materialIndex = _runtimeData.ranges[i].materialIndex;
+                if ((uint)materialIndex < (uint)materialCount)
+                    counts[materialIndex]++;
+            }
+
+            return counts;
+        }
+
+        private void Update()
+        {
+            if (!_initialized || _runtimeData == null || !_runtimeData.IsValid)
+                return;
+
+            EnsureCamera();
+            if (_mainCamera == null)
+                return;
+
+            if (_commandsDirty || CameraChanged())
+                RebuildVisibleCommands();
+
+            for (int i = 0; i < _renderDataList.Count; i++)
+            {
+                MaterialRenderData renderData = _renderDataList[i];
+                if (renderData.visibleCommandCount == 0)
+                    continue;
+
+                BindDynamicMaterialProperties(renderData);
+
+                // Procedural instancing Setup() has no SV_DrawID, so each visible range is submitted
+                // as one command to keep UnityIndirect's startInstance aligned with the drawn range.
+                for (int commandIndex = 0; commandIndex < renderData.visibleCommandCount; commandIndex++)
+                    Graphics.RenderMeshIndirect(renderData.renderParams, mesh, renderData.commandBuffer, 1,
+                        commandIndex);
+            }
+        }
+
+        private bool CameraChanged()
+        {
+            return _mainCamera.transform.position != _cachedCameraPosition ||
+                   _mainCamera.transform.rotation != _cachedCameraRotation;
+        }
+
+        private void RebuildVisibleCommands()
+        {
+            for (int i = 0; i < _renderDataList.Count; i++)
+                _renderDataList[i].visibleCommandCount = 0;
+
+            if (_visibleChunks.Length != _runtimeData.chunks.Length)
+                _visibleChunks = new bool[_runtimeData.chunks.Length];
+            else
+                Array.Clear(_visibleChunks, 0, _visibleChunks.Length);
+
+            _visibleChunkCount = 0;
+            _visibleRangeCount = 0;
+            _visibleDrawCommandCount = 0;
+
+            GeometryUtility.CalculateFrustumPlanes(_mainCamera, _frustumPlanes);
+            Vector3 cameraPosition = _mainCamera.transform.position;
+            float maxDistanceSqr = maxDrawDistance > 0f ? maxDrawDistance * maxDrawDistance : 0f;
+
+            uint indexCount = mesh.GetIndexCount(0);
+            uint startIndex = mesh.GetIndexStart(0);
+
+            for (int chunkIndex = 0; chunkIndex < _runtimeData.chunks.Length; chunkIndex++)
+            {
+                GrassChunk chunk = _runtimeData.chunks[chunkIndex];
+
+                if (maxDistanceSqr > 0f && chunk.bounds.SqrDistance(cameraPosition) > maxDistanceSqr)
+                    continue;
+
+                if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, chunk.bounds))
+                    continue;
+
+                _visibleChunks[chunkIndex] = true;
+                _visibleChunkCount++;
+
+                int endRange = chunk.firstRange + chunk.rangeCount;
+                for (int rangeIndex = chunk.firstRange; rangeIndex < endRange; rangeIndex++)
+                {
+                    GrassDrawRange range = _runtimeData.ranges[rangeIndex];
+                    if ((uint)range.materialIndex >= (uint)_renderDataByMaterial.Length)
+                        continue;
+
+                    MaterialRenderData renderData = _renderDataByMaterial[range.materialIndex];
+                    if (renderData == null)
+                        continue;
+
+                    _visibleRangeCount++;
+                    AddVisibleCommand(renderData, range, indexCount, startIndex);
+                }
+            }
+
+            for (int i = 0; i < _renderDataList.Count; i++)
+            {
+                MaterialRenderData renderData = _renderDataList[i];
+                _visibleDrawCommandCount += renderData.visibleCommandCount;
+
+                if (renderData.visibleCommandCount > 0)
+                    renderData.commandBuffer.SetData(renderData.commands, 0, 0, renderData.visibleCommandCount);
+            }
+
+            _cachedCameraPosition = _mainCamera.transform.position;
+            _cachedCameraRotation = _mainCamera.transform.rotation;
+            _commandsDirty = false;
+        }
+
+        private static void AddVisibleCommand(MaterialRenderData renderData, GrassDrawRange range, uint indexCount,
+            uint startIndex)
+        {
+            uint rangeStart = (uint)range.startInstance;
+            uint rangeCount = (uint)range.instanceCount;
+            int previousIndex = renderData.visibleCommandCount - 1;
+
+            if (previousIndex >= 0)
+            {
+                GraphicsBuffer.IndirectDrawIndexedArgs previous = renderData.commands[previousIndex];
+                uint previousEnd = previous.startInstance + previous.instanceCount;
+
+                if (previous.indexCountPerInstance == indexCount && previous.startIndex == startIndex &&
+                    previous.baseVertexIndex == 0 && previousEnd == rangeStart)
+                {
+                    previous.instanceCount += rangeCount;
+                    renderData.commands[previousIndex] = previous;
+                    return;
+                }
+            }
+
+            int commandIndex = renderData.visibleCommandCount++;
+            renderData.commands[commandIndex] = new GraphicsBuffer.IndirectDrawIndexedArgs
+            {
+                indexCountPerInstance = indexCount,
+                instanceCount = rangeCount,
+                startIndex = startIndex,
+                baseVertexIndex = 0,
+                startInstance = rangeStart
+            };
+        }
+
+        private void BindStaticMaterialProperties(MaterialRenderData renderData)
+        {
+            renderData.propertyBlock.SetBuffer(SourcePositionGrass, _instanceBuffer);
+            renderData.propertyBlock.SetFloat(InstancedBaseId, 0f);
+            BindRootMaterialProperties(renderData.propertyBlock, renderData.material);
+            BindLightmapProperties(renderData.propertyBlock, renderData.material);
+        }
+
+        private void BindDynamicMaterialProperties(MaterialRenderData renderData)
+        {
+            float materialScale = renderData.material.HasProperty(Scale) ? renderData.material.GetFloat(Scale) : 1f;
+            renderData.propertyBlock.SetMatrix(RotationScaleMatrix, GetRotationMatrix());
+            renderData.propertyBlock.SetFloat(Scale, materialScale);
+
+            if (renderData.material.HasProperty(FlowerSizeMultiplier))
+                renderData.propertyBlock.SetFloat(FlowerSizeMultiplier, renderData.material.GetFloat(FlowerSizeMultiplier));
+            if (renderData.material.HasProperty(FlowerSizeVariation))
+                renderData.propertyBlock.SetFloat(FlowerSizeVariation, renderData.material.GetFloat(FlowerSizeVariation));
+            if (renderData.material.HasProperty(FlowerCameraNudge))
+                renderData.propertyBlock.SetFloat(FlowerCameraNudge, renderData.material.GetFloat(FlowerCameraNudge));
+        }
+
+        private Matrix4x4 GetRotationMatrix()
+        {
+            Matrix4x4 matrix = Matrix4x4.identity;
+            Transform cameraTransform = _mainCamera.transform;
+            matrix.SetColumn(0, cameraTransform.right);
+            matrix.SetColumn(1, cameraTransform.up);
+            matrix.SetColumn(2, cameraTransform.forward);
+            matrix.SetColumn(3, new Vector4(0f, 0f, 0f, 1f));
+            return matrix;
+        }
+
+        private void BindRootMaterialProperties(MaterialPropertyBlock block, Material destination)
+        {
+            if (_rootMeshMaterial == null || destination == null)
+                return;
+
+            for (int i = 0; i < RootMaterialProperties.Length; i++)
+                CopyPropertyToBlock(block, destination, _rootMeshMaterial, RootMaterialProperties[i]);
+        }
+
+        private static void CopyPropertyToBlock(MaterialPropertyBlock block, Material destination, Material source,
+            string propertyName)
+        {
+            if (!source.HasProperty(propertyName) || !destination.HasProperty(propertyName))
+                return;
+
+            int propertyIndex = source.shader.FindPropertyIndex(propertyName);
+            if (propertyIndex < 0)
+                return;
+
+            switch (source.shader.GetPropertyType(propertyIndex))
             {
                 case UnityEngine.Rendering.ShaderPropertyType.Color:
-                    dest.SetColor(propertyName, source.GetColor(propertyName));
+                    block.SetColor(propertyName, source.GetColor(propertyName));
                     break;
                 case UnityEngine.Rendering.ShaderPropertyType.Vector:
-                    dest.SetVector(propertyName, source.GetVector(propertyName));
+                    block.SetVector(propertyName, source.GetVector(propertyName));
                     break;
                 case UnityEngine.Rendering.ShaderPropertyType.Float:
                 case UnityEngine.Rendering.ShaderPropertyType.Range:
-                    dest.SetFloat(propertyName, source.GetFloat(propertyName));
+                    block.SetFloat(propertyName, source.GetFloat(propertyName));
                     break;
                 case UnityEngine.Rendering.ShaderPropertyType.Texture:
-                    dest.SetTexture(propertyName, source.GetTexture(propertyName));
-                    dest.SetTextureOffset(propertyName, source.GetTextureOffset(propertyName));
-                    dest.SetTextureScale(propertyName, source.GetTextureScale(propertyName));
+                    Texture texture = source.GetTexture(propertyName);
+                    if (texture == null)
+                        break;
+
+                    block.SetTexture(propertyName, texture);
+                    string textureScaleOffsetName = propertyName + "_ST";
+                    if (destination.HasProperty(textureScaleOffsetName))
+                    {
+                        Vector2 scale = source.GetTextureScale(propertyName);
+                        Vector2 offset = source.GetTextureOffset(propertyName);
+                        block.SetVector(textureScaleOffsetName, new Vector4(scale.x, scale.y, offset.x, offset.y));
+                    }
                     break;
             }
+        }
+
+        private void BindLightmapProperties(MaterialPropertyBlock block, Material material)
+        {
+            if (lightmapIndex < 0 || lightmapIndex >= LightmapSettings.lightmaps.Length)
+            {
+                material.DisableKeyword("LIGHTMAP_ON");
+                material.DisableKeyword("DIRLIGHTMAP_COMBINED");
+                return;
+            }
+
+            LightmapData lightmapData = LightmapSettings.lightmaps[lightmapIndex];
+            if (lightmapData.lightmapColor == null)
+                return;
+
+            material.EnableKeyword("LIGHTMAP_ON");
+            if (LightmapSettings.lightmapsMode == LightmapsMode.CombinedDirectional)
+                material.EnableKeyword("DIRLIGHTMAP_COMBINED");
+            else
+                material.DisableKeyword("DIRLIGHTMAP_COMBINED");
+
+            block.SetTexture("unity_Lightmap", lightmapData.lightmapColor);
+            block.SetVector("unity_LightmapST", new Vector4(1f, 1f, 0f, 0f));
+
+            if (lightmapData.lightmapDir != null)
+                block.SetTexture("unity_LightmapInd", lightmapData.lightmapDir);
+
+            if (lightmapData.shadowMask != null)
+            {
+                block.SetTexture("unity_ShadowMask", lightmapData.shadowMask);
+                material.EnableKeyword("SHADOWS_SHADOWMASK");
+
+                if (QualitySettings.shadowmaskMode == ShadowmaskMode.DistanceShadowmask)
+                    material.EnableKeyword("LIGHTMAP_SHADOW_MIXING");
+                else
+                    material.DisableKeyword("LIGHTMAP_SHADOW_MIXING");
+            }
+        }
+
+        private void SyncMaterialKeywords(Material material)
+        {
+            material.EnableKeyword("_ALPHATEST_ON");
+
+            if (_rootMeshMaterial == null)
+                return;
+
+            SyncKeyword(material, "_REFLECTION_PROBE_BLENDING");
+            SyncKeyword(material, "_REFLECTION_PROBE_BOX_PROJECTION");
+        }
+
+        private void SyncKeyword(Material material, string keyword)
+        {
+            if (_rootMeshMaterial.IsKeywordEnabled(keyword))
+                material.EnableKeyword(keyword);
+            else
+                material.DisableKeyword(keyword);
+        }
+
+        private void EnsureCamera()
+        {
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                if (_sceneView != null && _sceneView.camera != null)
+                    SetCullingCamera(_sceneView.camera);
+                else if (SceneView.lastActiveSceneView != null)
+                    SetCullingCamera(SceneView.lastActiveSceneView.camera);
+                return;
+            }
+#endif
+            SetCullingCamera(Camera.main);
+        }
+
+        private void SetCullingCamera(Camera camera)
+        {
+            if (camera == null || camera == _mainCamera)
+                return;
+
+            _mainCamera = camera;
+            _commandsDirty = true;
+        }
+
+        public void OnEnable()
+        {
+#if UNITY_EDITOR
+            SceneView.duringSceneGui -= OnScene;
+            SceneView.duringSceneGui += OnScene;
+#endif
+            EnsureCamera();
+
+            if (Application.isPlaying)
+                grassWasCleared = false;
+
+            ReleaseRuntimeResources();
+
+            if (GrassDataSource != null && grassData.Count == 0 && !grassWasCleared)
+            {
+                if (!GrassDataManager.TryLoadGrassData(this))
+                    return;
+            }
+            else if (grassData.Count > 0)
+            {
+                ApplyLoadedData(CreateBakedDataFromMemory(), replaceSourceList: false);
+            }
+
+            InitRenderer();
         }
 
         public void OnDisable()
         {
-            try
-            {
-                if (_initialized)
-                    Release();
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"Error during GrassHolder.OnDisable on {gameObject.name}: {e.Message}");
-            }
-            finally
-            {
-                _initialized = false;
-            }
+#if UNITY_EDITOR
+            SceneView.duringSceneGui -= OnScene;
+#endif
+            ReleaseRuntimeResources();
         }
 
-        // draw the bounds gizmos
-        void OnDrawGizmos()
+        private void ReleaseRuntimeResources()
         {
-            void RecursivelyDrawTreeBounds(GrassCullingTree tree, Color color)
+            _initialized = false;
+            _commandsDirty = true;
+
+            _instanceBuffer?.Release();
+            _instanceBuffer = null;
+
+            for (int i = 0; i < _renderDataList.Count; i++)
             {
-                foreach (var child in tree.children)
-                {
-                    if (child.isDrawn)
-                    {
-                        RecursivelyDrawTreeBounds(child, color * 2);
-                        Gizmos.color = color;
-                        Gizmos.DrawWireCube(child.bounds.center, child.bounds.size);
-                    }
-                }
+                _renderDataList[i].commandBuffer?.Release();
+                _renderDataList[i].propertyBlock?.Clear();
             }
 
-            if (drawBounds && cullingTree != null)
+            _renderDataList.Clear();
+            _renderDataByMaterial = Array.Empty<MaterialRenderData>();
+            _visibleChunks = Array.Empty<bool>();
+            _visibleChunkCount = 0;
+            _visibleRangeCount = 0;
+            _visibleDrawCommandCount = 0;
+        }
+
+#if UNITY_EDITOR
+        private void OnScene(SceneView scene)
+        {
+            _sceneView = scene;
+            if (!Application.isPlaying && scene.camera != null)
+                SetCullingCamera(scene.camera);
+        }
+
+        private void OnValidate()
+        {
+            chunkGridResolution = Mathf.Max(1, chunkGridResolution);
+            boundsPadding = Mathf.Max(0f, boundsPadding);
+            maxDrawDistance = Mathf.Max(0f, maxDrawDistance);
+            _commandsDirty = true;
+
+            string currentPath = GrassDataSource != null ? AssetDatabase.GetAssetPath(GrassDataSource) : string.Empty;
+            if (lastAttachedGrassDataSourcePath != currentPath)
             {
-                Gizmos.color = new Color(0.4f, 0.8f, 0.9f, 1f) / 4;
-                Gizmos.DrawWireCube(cullingTree.bounds.center, cullingTree.bounds.size);
-                RecursivelyDrawTreeBounds(cullingTree, Gizmos.color);
+                lastAttachedGrassDataSourcePath = currentPath;
+                if (isActiveAndEnabled)
+                    Reinitialize();
+            }
+        }
+#endif
+
+        private void OnDrawGizmos()
+        {
+            if ((!drawBounds && !highlightRenderedCells) || _runtimeData == null || _runtimeData.chunks == null)
+                return;
+
+            if (drawBounds)
+            {
+                Gizmos.color = new Color(0.4f, 0.8f, 0.9f, 0.35f);
+                Gizmos.DrawWireCube(_runtimeData.bounds.center, _runtimeData.bounds.size);
+
+                Gizmos.color = new Color(0.4f, 0.8f, 0.9f, 0.1f);
+                for (int i = 0; i < _runtimeData.chunks.Length; i++)
+                    Gizmos.DrawWireCube(_runtimeData.chunks[i].bounds.center, _runtimeData.chunks[i].bounds.size);
+            }
+
+            if (!highlightRenderedCells || _visibleChunks == null || _visibleChunks.Length == 0)
+                return;
+
+            int chunkCount = Mathf.Min(_runtimeData.chunks.Length, _visibleChunks.Length);
+            for (int i = 0; i < chunkCount; i++)
+            {
+                if (!_visibleChunks[i])
+                    continue;
+
+                Bounds bounds = _runtimeData.chunks[i].bounds;
+                Gizmos.color = new Color(1f, 0.78f, 0.12f, 0.12f);
+                Gizmos.DrawCube(bounds.center, bounds.size);
+                Gizmos.color = new Color(1f, 0.78f, 0.12f, 0.9f);
+                Gizmos.DrawWireCube(bounds.center, bounds.size);
             }
         }
 
@@ -995,28 +635,18 @@ namespace Grass.Core
 #if UNITY_EDITOR
             if (GrassDataSource == null)
             {
-                // Determine save path based on current scene
                 string savePath = "Assets";
                 var currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
                 if (!string.IsNullOrEmpty(currentScene.path))
-                {
-                    // Save in the same folder as the scene
                     savePath = System.IO.Path.GetDirectoryName(currentScene.path);
-                }
                 else
-                {
-                    // If scene is not saved, use Assets/Scenes/ as fallback
                     savePath = "Assets/Scenes";
-                }
 
                 GrassDataManager.CreateGrassDataAsset(savePath, this);
                 lastAttachedGrassDataSourcePath = AssetDatabase.GetAssetPath(GrassDataSource);
             }
 #endif
             mesh = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
-
         }
-
-        #endregion
     }
 }

@@ -11,11 +11,12 @@ namespace Grass.Editor
         private SerializedProperty mesh;
         private SerializedProperty materialSystem;
         private SerializedProperty normalLimit;
-        private SerializedProperty depthCullingTree;
-        private SerializedProperty UseOctreeCulling;
+        private SerializedProperty chunkGridResolution;
+        private SerializedProperty boundsPadding;
+        private SerializedProperty maxDrawDistance;
         private SerializedProperty drawBounds;
+        private SerializedProperty highlightRenderedCells;
         private SerializedProperty GrassDataSource;
-        private SerializedProperty OrtographicCamera;
         private SerializedProperty renderingLayerMask;
 
         private void OnEnable()
@@ -24,11 +25,12 @@ namespace Grass.Editor
             mesh = serializedObject.FindProperty("mesh");
             materialSystem = serializedObject.FindProperty("materialSystem");
             normalLimit = serializedObject.FindProperty("normalLimit");
-            depthCullingTree = serializedObject.FindProperty("depthCullingTree");
-            UseOctreeCulling = serializedObject.FindProperty("UseOctreeCulling");
+            chunkGridResolution = serializedObject.FindProperty("chunkGridResolution");
+            boundsPadding = serializedObject.FindProperty("boundsPadding");
+            maxDrawDistance = serializedObject.FindProperty("maxDrawDistance");
             drawBounds = serializedObject.FindProperty("drawBounds");
+            highlightRenderedCells = serializedObject.FindProperty("highlightRenderedCells");
             GrassDataSource = serializedObject.FindProperty("GrassDataSource");
-            OrtographicCamera = serializedObject.FindProperty("OrtographicCamera");
             renderingLayerMask = serializedObject.FindProperty("renderingLayerMask");
         }
 
@@ -61,7 +63,7 @@ namespace Grass.Editor
 
             // Material System and Mesh
             EditorGUILayout.Space();
-            EditorGUILayout.PropertyField(materialSystem, new GUIContent("Material System"));
+            EditorGUILayout.PropertyField(materialSystem, new GUIContent("Material System"), true);
             EditorGUILayout.PropertyField(mesh, new GUIContent("Mesh"));
 
             // Generation Settings
@@ -72,22 +74,24 @@ namespace Grass.Editor
             // Rendering Options
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Rendering Settings", EditorStyles.boldLabel);
-            
-            // Custom rendering layer mask dropdown
             DrawRenderingLayerMaskField();
+            EditorGUILayout.PropertyField(maxDrawDistance, new GUIContent("Max Draw Distance"));
 
             // Culling Options
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Culling Settings", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Baked Chunk Settings", EditorStyles.boldLabel);
+            EditorGUILayout.IntSlider(chunkGridResolution, 1, 64, new GUIContent("Chunk Grid Resolution"));
+            EditorGUILayout.PropertyField(boundsPadding, new GUIContent("Bounds Padding"));
+            EditorGUILayout.PropertyField(drawBounds, new GUIContent("Draw Bounds"));
+            EditorGUILayout.PropertyField(highlightRenderedCells, new GUIContent("Highlight Rendered Cells"));
 
-            EditorGUILayout.PropertyField(UseOctreeCulling, new GUIContent("Use Octree Culling"));
-
-            if (UseOctreeCulling.boolValue)
+            if (script.TotalChunkCount > 0)
             {
-                EditorGUILayout.PropertyField(drawBounds, new GUIContent("Draw Bounds"));
-
-                // Draw the int slider for Depth Culling Tree
-                EditorGUILayout.IntSlider(depthCullingTree, 1, 6, new GUIContent("Depth Culling Tree"));
+                EditorGUILayout.HelpBox(
+                    $"Visible chunks: {script.VisibleChunkCount}/{script.TotalChunkCount}\n" +
+                    $"Visible ranges: {script.VisibleRangeCount}/{script.TotalRangeCount}\n" +
+                    $"Draw commands after merge: {script.VisibleDrawCommandCount}",
+                    MessageType.Info);
             }
 
             // Apply changes

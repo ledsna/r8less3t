@@ -46,11 +46,19 @@ void Setup()
     lightmapUV = instanceData.lightmapUV;
     materialIndex = instanceData.materialIndex;
 
+    float instanceScale = _Scale;
+
+    #if defined(_USE_TEXTURE_COLOR)
+        float flowerScaleHash = HashSimple(positionWS + float3(13.7, 29.1, 5.3));
+        float flowerScaleVariation = lerp(1.0 - _FlowerSizeVariation, 1.0 + _FlowerSizeVariation, flowerScaleHash);
+        instanceScale *= _FlowerSizeMultiplier * flowerScaleVariation;
+    #endif
+
     // Set position first
-    unity_ObjectToWorld._m03_m13_m23_m33 = float4(positionWS + instanceData.normal * _Scale / 2 , 1.0);
+    unity_ObjectToWorld._m03_m13_m23_m33 = float4(positionWS + instanceData.normal * instanceScale / 2 , 1.0);
 
     // Apply the scale to the transformation matrix
-    unity_ObjectToWorld._m00_m11_m22 = float3(_Scale, _Scale, _Scale);
+    unity_ObjectToWorld._m00_m11_m22 = float3(instanceScale, instanceScale, instanceScale);
     unity_ObjectToWorld = mul(unity_ObjectToWorld, m_RS);
 
     // Slight random Y rotation to break camera-facing uniformity

@@ -32,7 +32,7 @@ namespace Grass.Core
 			return nudgedNormal.normalized;
 		}
 
-		// Unified material assignment logic
+		// Baked variant assignment. Runtime only renders the selected material index.
 		private static void AssignGrassMaterial(ref GrassData grassData, GrassMaterialSystem materialSystem)
 		{
 			if (materialSystem == null || !materialSystem.IsValid())
@@ -41,18 +41,13 @@ namespace Grass.Core
 				return;
 			}
 
-			// Check if this should be nudged based on probability
-			float nudgeChance = GetRandomHash(grassData.position);
-			if (nudgeChance < materialSystem.grassNormalNudgeProbability)
-			{
-				// Apply random normal nudging with default amount
-				// Users can override nudge amount in their individual materials if needed
-				float nudgeAmount = 0.1f;
-				grassData.normal = ApplyNormalNudge(grassData.normal, nudgeAmount, grassData.position);
-			}
+			grassData.materialIndex = materialSystem.SelectVariantIndex(grassData.position);
+			GrassVariant variant = materialSystem.GetValidVariant(grassData.materialIndex);
 
-			// Assign material index
-			grassData.materialIndex = materialSystem.SelectMaterialIndex(grassData.position);
+			if (variant != null && GetRandomHash(grassData.position) < variant.normalNudgeProbability)
+			{
+				grassData.normal = ApplyNormalNudge(grassData.normal, variant.normalNudgeStrength, grassData.position);
+			}
 		}
 
 		public static bool TryGeneratePoints(GrassHolder grassHolder, GameObject target, int totalGrassAmount,

@@ -173,7 +173,7 @@ Shader "Ledsna/LitInstancedBillboard"
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma shader_feature_local_fragment _EMISSION
             #pragma shader_feature_local_fragment _SPECULAR_SETUP
-            #pragma shader_feature_local_fragment _USE_TEXTURE_COLOR
+            #pragma shader_feature_local _USE_TEXTURE_COLOR
 
             // Removed: _ENVIRONMENTREFLECTIONS_OFF (always enabled)
             // Removed: _SPECULARHIGHLIGHTS_OFF (always enabled)

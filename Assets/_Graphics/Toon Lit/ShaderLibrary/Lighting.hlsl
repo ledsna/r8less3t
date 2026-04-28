@@ -296,7 +296,8 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData, out hal
     if (outlineType == 1)
     {
         half3 viewDir = inputData.viewDirectionWS;
-        lightingNormal = normalize(lightingNormal - dot(lightingNormal, viewDir) * viewDir);
+        // Project the normal onto the plane orthogonal to the view direction
+        lightingNormal = normalize(lightingNormal + normalize(lightingNormal - dot(lightingNormal, viewDir) * viewDir));
     }
 
 
