@@ -512,7 +512,7 @@ float2 GetRefractedUV(float2 uv, float3 positionWS, float3 normalWS, float stren
     return targetUV;
 }
 
-// 2. Retrieve Background Position (Handles Logic for Billboards/Hijacked Normals)
+// 2. Retrieve Background Position. Legacy billboard hijack support remains for older shaders.
 float3 GetBackgroundPosition(float2 uv, float depth, out bool isHijacked)
 {
     // Check if background is a billboard (Alpha > 1.0 flag)

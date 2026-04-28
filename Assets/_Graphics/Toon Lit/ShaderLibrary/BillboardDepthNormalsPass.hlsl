@@ -59,9 +59,7 @@ struct Attributes
 
 struct Varyings
 {
-    #if defined(_ALPHATEST_ON)
-        float2 uv       : TEXCOORD0;
-    #endif
+    float2 uv           : TEXCOORD0;
     float3 positionWS   : TEXCOORD1;
     float3 normalWS     : TEXCOORD2;
     nointerpolation int textureIndex : TEXCOORD3;
@@ -88,9 +86,7 @@ Varyings DepthNormalsVertex(Attributes input)
         return output;
     }
 
-    #if defined(_ALPHATEST_ON)
-        output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
-    #endif
+    output.uv = input.texcoord;
 
     VertexPositionInputs vertexInput = GetVertexPositionInputs(input.position.xyz);
 
@@ -141,22 +137,23 @@ void DepthNormalsFragment(
 {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-    #if defined(_ALPHATEST_ON)
-        half4 clipSample = SampleTextureArray(input.uv, input.textureIndex);
-        clip(clipSample.a - 0.5);
+    half4 clipSample = SampleTextureArray(input.uv, input.textureIndex);
+    clip(clipSample.a - _Cutoff);
+
+    #if defined(_GBUFFER_NORMALS_OCT)
+        float3 normalWS = normalize(input.normalWS);
+        float2 octNormalWS = PackNormalOctQuadEncode(normalWS);
+        float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);
+        half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);
+        outNormalWS = half4(packedNormalWS, 0.0);
+    #else
+        outNormalWS = half4(NormalizeNormalPerPixel(input.normalWS), _Smoothness);
     #endif
 
-    // "Tad-aa!"
-    // Hijack _CameraNormalsTexture:
-    // RGB = World Position
-    // A   = Smoothness
-    // We add 2.0 to smoothness to flag this pixel as a billboard for the Water shader
-    outNormalWS = half4(positionWS, _Smoothness + 2.0);
-
     #ifdef _WRITE_OBJECT_ID
-        // .x = per-patch base ID (from GrassHolder via MaterialPropertyBlock)
-        // .y = per-instance ID within the patch (from SV_InstanceID)
-        outObjectID = float2(0, 0);//_InstancedBaseID, input.customInstanceID);
+        // Grass has no Renderer, so _InstancedBaseID replaces unity_RendererUserValue.
+        // _SubmeshID remains the per-material ID used by the regular Lit depth-normal pass.
+        outObjectID = float2(_InstancedBaseID, _SubmeshID);
     #endif
 }
 

@@ -63,6 +63,17 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
 
         private MaterialProperty _SubmeshID;
 
+        public override void ValidateMaterial(Material material)
+        {
+            // Billboard grass/flowers are sprite silhouettes. Letting the Lit GUI disable alpha
+            // clipping makes depth normals/object IDs write the whole transparent quad.
+            if (material.HasProperty("_AlphaClip"))
+                material.SetFloat("_AlphaClip", 1f);
+
+            base.ValidateMaterial(material);
+            material.EnableKeyword("_ALPHATEST_ON");
+        }
+
         public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
             this.materialEditor = materialEditor;

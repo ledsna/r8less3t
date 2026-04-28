@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using __Project.Shared.Attributes;
 using UnityEngine;
 
@@ -20,17 +21,30 @@ namespace Grass.Core
         private static readonly int FlowerSizeVariation = Shader.PropertyToID("_FlowerSizeVariation");
         private static readonly int FlowerCameraNudge = Shader.PropertyToID("_FlowerCameraNudge");
 
+        private static readonly int AllGrassInstances = Shader.PropertyToID("_AllGrassInstances");
+        private static readonly int Chunks = Shader.PropertyToID("_Chunks");
+        private static readonly int Ranges = Shader.PropertyToID("_Ranges");
+        private static readonly int VisibleGrass = Shader.PropertyToID("_VisibleGrass");
+        private static readonly int FrustumPlanes = Shader.PropertyToID("_FrustumPlanes");
+        private static readonly int CameraPosition = Shader.PropertyToID("_CameraPosition");
+        private static readonly int MaxDrawDistanceSquared = Shader.PropertyToID("_MaxDrawDistanceSquared");
+        private static readonly int ChunkCount = Shader.PropertyToID("_ChunkCount");
+        private static readonly int MaterialIndex = Shader.PropertyToID("_MaterialIndex");
+
+        private const int GpuChunkStride = sizeof(float) * 8;
+        private const int GpuRangeStride = sizeof(int) * 4;
+        private const int IndirectInstanceCountOffset = sizeof(uint);
+        private const int ComputeThreadGroupSize = 64;
+
         private static readonly string[] RootMaterialProperties =
         {
+            // Root material drives terrain/lighting colour. Variant materials keep alpha, outline,
+            // object-ID, render-state, and billboard-specific controls live/editable.
             "_DiffuseSpecularCelShader", "_DiffuseSteps", "_FresnelSteps", "_SpecularStep",
             "_DistanceSteps", "_ShadowSteps", "_ReflectionSteps",
-            "_Surface", "_Blend", "_Cull", "_Cutoff", "_SrcBlend", "_DstBlend",
-            "_SrcBlendAlpha", "_DstBlendAlpha", "_ZWrite", "_BlendModePreserveSpecular", "_AlphaToMask",
             "_BaseColor", "_BaseMap", "_SpecColor", "_WorkflowMode", "_Smoothness", "_Metallic",
             "_MetallicGlossMap", "_SpecGlossMap", "_BumpScale", "_BumpMap", "_OcclusionStrength",
-            "_OcclusionMap", "_EmissionColor", "_EmissionMap", "_OutlineColour", "_OutlineStrength",
-            "_DebugOn", "_External", "_Convex", "_Concave", "_DepthThreshold", "_NormalsThreshold",
-            "_ExternalScale", "_InternalScale"
+            "_OcclusionMap", "_EmissionColor", "_EmissionMap"
         };
 
         [NonSerialized] public List<GrassData> grassData = new();
@@ -47,11 +61,18 @@ namespace Grass.Core
 
         [Header("Runtime Layout")]
         [SerializeField, Range(1, 64)] private int chunkGridResolution = 16;
-        [SerializeField, Min(0f)] private float boundsPadding = 2f;
+        [SerializeField, Min(0f), Tooltip("Extra culling margin for billboard size, wind, and flower scaling. Too high makes more cells visible.")]
+        private float boundsPadding = 2f;
 
         [Header("Rendering")]
         [SerializeField] public uint renderingLayerMask = 1;
+        [SerializeField] private bool useGpuCulling = true;
+        [SerializeField] private ComputeShader frustumCullingCompute;
         [SerializeField, Min(0f)] private float maxDrawDistance = 0f;
+        [SerializeField, Min(0f), Tooltip("Camera movement required before rebuilding visible grass buffers.")]
+        private float cullingPositionThreshold = 0.2f;
+        [SerializeField, Min(0f), Tooltip("Camera rotation in degrees required before rebuilding visible grass buffers.")]
+        private float cullingRotationThreshold = 1f;
         [SerializeField] private bool drawBounds;
         [SerializeField] private bool highlightRenderedCells = true;
 
@@ -64,19 +85,44 @@ namespace Grass.Core
         private sealed class MaterialRenderData
         {
             public int materialIndex;
+            public float objectId;
             public Material material;
             public MaterialPropertyBlock propertyBlock;
             public RenderParams renderParams;
             public GraphicsBuffer commandBuffer;
-            public GraphicsBuffer.IndirectDrawIndexedArgs[] commands;
+            public GraphicsBuffer.IndirectDrawIndexedArgs[] command;
+            public ComputeBuffer visibleInstanceBuffer;
+            public GrassData[] visibleInstances;
+            public int visibleInstanceCount;
             public int visibleCommandCount;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GpuChunkData
+        {
+            public Vector3 center;
+            public int firstRange;
+            public Vector3 extents;
+            public int rangeCount;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GpuRangeData
+        {
+            public int materialIndex;
+            public int startInstance;
+            public int instanceCount;
+            public int padding;
+        }
+
         private GrassRuntimeData _runtimeData;
-        private ComputeBuffer _instanceBuffer;
         private MaterialRenderData[] _renderDataByMaterial = Array.Empty<MaterialRenderData>();
         private readonly List<MaterialRenderData> _renderDataList = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
+        private readonly Vector4[] _frustumPlaneVectors = new Vector4[6];
+        private ComputeBuffer _allInstancesBuffer;
+        private ComputeBuffer _chunkBuffer;
+        private ComputeBuffer _rangeBuffer;
         private Camera _mainCamera;
         private Vector3 _cachedCameraPosition;
         private Quaternion _cachedCameraRotation;
@@ -84,6 +130,8 @@ namespace Grass.Core
         private int _visibleChunkCount;
         private int _visibleRangeCount;
         private int _visibleDrawCommandCount;
+        private int _gpuCullKernel = -1;
+        private bool _useGpuCullingRuntime;
         private bool _commandsDirty = true;
         private bool _initialized;
 
@@ -169,28 +217,40 @@ namespace Grass.Core
             if (materials.Length == 0)
                 return;
 
-            _instanceBuffer = new ComputeBuffer(_runtimeData.instances.Length, GrassRuntimeBuilder.GrassDataStride,
-                ComputeBufferType.Structured, ComputeBufferMode.Immutable);
-            _instanceBuffer.SetData(_runtimeData.instances);
+            _useGpuCullingRuntime = useGpuCulling && frustumCullingCompute != null && SystemInfo.supportsComputeShaders;
+            if (_useGpuCullingRuntime)
+                InitGpuCullingBuffers();
 
             _renderDataByMaterial = new MaterialRenderData[materials.Length];
             _visibleChunks = new bool[_runtimeData.chunks.Length];
-            int[] rangeCountsByMaterial = CountRangesByMaterial(materials.Length);
+            int[] instanceCountsByMaterial = CountInstancesByMaterial(materials.Length);
 
             for (int materialIndex = 0; materialIndex < materials.Length; materialIndex++)
             {
-                if (materials[materialIndex] == null || rangeCountsByMaterial[materialIndex] == 0)
+                if (materials[materialIndex] == null || instanceCountsByMaterial[materialIndex] == 0)
                     continue;
+
+                int instanceCapacity = instanceCountsByMaterial[materialIndex];
 
                 var renderData = new MaterialRenderData
                 {
                     materialIndex = materialIndex,
+                    objectId = ResolveObjectId(materialIndex),
                     material = materials[materialIndex],
                     propertyBlock = new MaterialPropertyBlock(),
-                    commands = new GraphicsBuffer.IndirectDrawIndexedArgs[rangeCountsByMaterial[materialIndex]],
-                    commandBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments,
-                        rangeCountsByMaterial[materialIndex], GraphicsBuffer.IndirectDrawIndexedArgs.size)
+                    command = new GraphicsBuffer.IndirectDrawIndexedArgs[1],
+                    commandBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1,
+                        GraphicsBuffer.IndirectDrawIndexedArgs.size),
+                    visibleInstances = new GrassData[instanceCapacity],
+                    visibleInstanceBuffer = _useGpuCullingRuntime
+                        ? new ComputeBuffer(instanceCapacity, GrassRuntimeBuilder.GrassDataStride,
+                            ComputeBufferType.Append)
+                        : new ComputeBuffer(instanceCapacity, GrassRuntimeBuilder.GrassDataStride,
+                            ComputeBufferType.Structured, ComputeBufferMode.Dynamic)
                 };
+
+                renderData.command[0] = CreateCommandArgs(0);
+                renderData.commandBuffer.SetData(renderData.command);
 
                 SyncMaterialKeywords(renderData.material);
                 BindStaticMaterialProperties(renderData);
@@ -212,18 +272,92 @@ namespace Grass.Core
             _initialized = _renderDataList.Count > 0;
         }
 
-        private int[] CountRangesByMaterial(int materialCount)
+        private float ResolveObjectId(int materialIndex)
+        {
+            GrassVariant variant = materialSystem.GetValidVariant(materialIndex);
+
+            // Grass should behave like background in the ObjectID texture. Non-grass variants get
+            // procedural base IDs equivalent to unity_RendererUserValue for normal renderers.
+            return variant == null || variant.kind == GrassVariantKind.Grass ? 0f : AllocateObjectId();
+        }
+
+        private static float AllocateObjectId()
+        {
+            return global::WriteRendererID.GetNextID();
+        }
+
+        private void InitGpuCullingBuffers()
+        {
+            _gpuCullKernel = frustumCullingCompute.FindKernel("CullAndCompact");
+
+            _allInstancesBuffer = new ComputeBuffer(_runtimeData.instances.Length, GrassRuntimeBuilder.GrassDataStride,
+                ComputeBufferType.Structured, ComputeBufferMode.Immutable);
+            _allInstancesBuffer.SetData(_runtimeData.instances);
+
+            var chunkData = new GpuChunkData[_runtimeData.chunks.Length];
+            for (int i = 0; i < _runtimeData.chunks.Length; i++)
+            {
+                GrassChunk chunk = _runtimeData.chunks[i];
+                chunkData[i] = new GpuChunkData
+                {
+                    center = chunk.bounds.center,
+                    firstRange = chunk.firstRange,
+                    extents = chunk.bounds.extents,
+                    rangeCount = chunk.rangeCount
+                };
+            }
+
+            _chunkBuffer = new ComputeBuffer(chunkData.Length, GpuChunkStride, ComputeBufferType.Structured,
+                ComputeBufferMode.Immutable);
+            _chunkBuffer.SetData(chunkData);
+
+            var rangeData = new GpuRangeData[_runtimeData.ranges.Length];
+            for (int i = 0; i < _runtimeData.ranges.Length; i++)
+            {
+                GrassDrawRange range = _runtimeData.ranges[i];
+                rangeData[i] = new GpuRangeData
+                {
+                    materialIndex = range.materialIndex,
+                    startInstance = range.startInstance,
+                    instanceCount = range.instanceCount
+                };
+            }
+
+            _rangeBuffer = new ComputeBuffer(rangeData.Length, GpuRangeStride, ComputeBufferType.Structured,
+                ComputeBufferMode.Immutable);
+            _rangeBuffer.SetData(rangeData);
+
+            frustumCullingCompute.SetBuffer(_gpuCullKernel, AllGrassInstances, _allInstancesBuffer);
+            frustumCullingCompute.SetBuffer(_gpuCullKernel, Chunks, _chunkBuffer);
+            frustumCullingCompute.SetBuffer(_gpuCullKernel, Ranges, _rangeBuffer);
+            frustumCullingCompute.SetInt(ChunkCount, _runtimeData.chunks.Length);
+        }
+
+        private int[] CountInstancesByMaterial(int materialCount)
         {
             int[] counts = new int[materialCount];
 
             for (int i = 0; i < _runtimeData.ranges.Length; i++)
             {
-                int materialIndex = _runtimeData.ranges[i].materialIndex;
+                GrassDrawRange range = _runtimeData.ranges[i];
+                int materialIndex = range.materialIndex;
                 if ((uint)materialIndex < (uint)materialCount)
-                    counts[materialIndex]++;
+                    counts[materialIndex] += range.instanceCount;
             }
 
             return counts;
+        }
+
+        private GraphicsBuffer.IndirectDrawIndexedArgs CreateCommandArgs(uint instanceCount)
+        {
+            return new GraphicsBuffer.IndirectDrawIndexedArgs
+            {
+                indexCountPerInstance = mesh.GetIndexCount(0),
+                instanceCount = instanceCount,
+                startIndex = mesh.GetIndexStart(0),
+                baseVertexIndex = 0,
+                startInstance = 0
+            };
         }
 
         private void Update()
@@ -236,7 +370,12 @@ namespace Grass.Core
                 return;
 
             if (_commandsDirty || CameraChanged())
-                RebuildVisibleCommands();
+            {
+                if (_useGpuCullingRuntime)
+                    DispatchGpuCulling();
+                else
+                    RebuildVisibleCommands();
+            }
 
             for (int i = 0; i < _renderDataList.Count; i++)
             {
@@ -245,25 +384,120 @@ namespace Grass.Core
                     continue;
 
                 BindDynamicMaterialProperties(renderData);
-
-                // Procedural instancing Setup() has no SV_DrawID, so each visible range is submitted
-                // as one command to keep UnityIndirect's startInstance aligned with the drawn range.
-                for (int commandIndex = 0; commandIndex < renderData.visibleCommandCount; commandIndex++)
-                    Graphics.RenderMeshIndirect(renderData.renderParams, mesh, renderData.commandBuffer, 1,
-                        commandIndex);
+                Graphics.RenderMeshIndirect(renderData.renderParams, mesh, renderData.commandBuffer, 1);
             }
         }
 
         private bool CameraChanged()
         {
-            return _mainCamera.transform.position != _cachedCameraPosition ||
-                   _mainCamera.transform.rotation != _cachedCameraRotation;
+            Transform cameraTransform = _mainCamera.transform;
+            float positionThresholdSqr = cullingPositionThreshold * cullingPositionThreshold;
+
+            if ((cameraTransform.position - _cachedCameraPosition).sqrMagnitude > positionThresholdSqr)
+                return true;
+
+            return Quaternion.Angle(cameraTransform.rotation, _cachedCameraRotation) > cullingRotationThreshold;
+        }
+
+        private void DispatchGpuCulling()
+        {
+            GeometryUtility.CalculateFrustumPlanes(_mainCamera, _frustumPlanes);
+            for (int i = 0; i < _frustumPlanes.Length; i++)
+            {
+                Plane plane = _frustumPlanes[i];
+                Vector3 normal = plane.normal;
+                _frustumPlaneVectors[i] = new Vector4(normal.x, normal.y, normal.z, plane.distance);
+            }
+
+            Vector3 cameraPosition = _mainCamera.transform.position;
+            float maxDistanceSqr = maxDrawDistance > 0f ? maxDrawDistance * maxDrawDistance : 0f;
+
+            if (highlightRenderedCells)
+                UpdateVisibleChunkDebug(cameraPosition, maxDistanceSqr);
+            else
+                ClearVisibleChunkDebug();
+            _visibleDrawCommandCount = 0;
+
+            frustumCullingCompute.SetVectorArray(FrustumPlanes, _frustumPlaneVectors);
+            frustumCullingCompute.SetVector(CameraPosition, cameraPosition);
+            frustumCullingCompute.SetFloat(MaxDrawDistanceSquared, maxDistanceSqr);
+
+            int threadGroups = Mathf.CeilToInt(_runtimeData.chunks.Length / (float)ComputeThreadGroupSize);
+
+            for (int i = 0; i < _renderDataList.Count; i++)
+            {
+                MaterialRenderData renderData = _renderDataList[i];
+                renderData.visibleInstanceBuffer.SetCounterValue(0);
+                renderData.command[0] = CreateCommandArgs(0);
+                renderData.commandBuffer.SetData(renderData.command);
+
+                frustumCullingCompute.SetInt(MaterialIndex, renderData.materialIndex);
+                frustumCullingCompute.SetBuffer(_gpuCullKernel, VisibleGrass, renderData.visibleInstanceBuffer);
+                frustumCullingCompute.Dispatch(_gpuCullKernel, threadGroups, 1, 1);
+                GraphicsBuffer.CopyCount(renderData.visibleInstanceBuffer, renderData.commandBuffer,
+                    IndirectInstanceCountOffset);
+
+                renderData.visibleCommandCount = 1;
+                _visibleDrawCommandCount++;
+            }
+
+            _cachedCameraPosition = _mainCamera.transform.position;
+            _cachedCameraRotation = _mainCamera.transform.rotation;
+            _commandsDirty = false;
+        }
+
+        private void UpdateVisibleChunkDebug(Vector3 cameraPosition, float maxDistanceSqr)
+        {
+            if (_visibleChunks.Length != _runtimeData.chunks.Length)
+                _visibleChunks = new bool[_runtimeData.chunks.Length];
+            else
+                Array.Clear(_visibleChunks, 0, _visibleChunks.Length);
+
+            _visibleChunkCount = 0;
+            _visibleRangeCount = 0;
+
+            for (int chunkIndex = 0; chunkIndex < _runtimeData.chunks.Length; chunkIndex++)
+            {
+                GrassChunk chunk = _runtimeData.chunks[chunkIndex];
+
+                if (maxDistanceSqr > 0f && chunk.bounds.SqrDistance(cameraPosition) > maxDistanceSqr)
+                    continue;
+
+                if (!TestPlanesAABB(_frustumPlanes, chunk.bounds))
+                    continue;
+
+                _visibleChunks[chunkIndex] = true;
+                _visibleChunkCount++;
+
+                int endRange = chunk.firstRange + chunk.rangeCount;
+                for (int rangeIndex = chunk.firstRange; rangeIndex < endRange; rangeIndex++)
+                {
+                    GrassDrawRange range = _runtimeData.ranges[rangeIndex];
+                    if ((uint)range.materialIndex < (uint)_renderDataByMaterial.Length &&
+                        _renderDataByMaterial[range.materialIndex] != null)
+                    {
+                        _visibleRangeCount++;
+                    }
+                }
+            }
+        }
+
+        private void ClearVisibleChunkDebug()
+        {
+            if (_visibleChunks.Length > 0)
+                Array.Clear(_visibleChunks, 0, _visibleChunks.Length);
+
+            _visibleChunkCount = 0;
+            _visibleRangeCount = 0;
         }
 
         private void RebuildVisibleCommands()
         {
             for (int i = 0; i < _renderDataList.Count; i++)
+            {
                 _renderDataList[i].visibleCommandCount = 0;
+                _renderDataList[i].visibleInstanceCount = 0;
+            }
 
             if (_visibleChunks.Length != _runtimeData.chunks.Length)
                 _visibleChunks = new bool[_runtimeData.chunks.Length];
@@ -278,9 +512,6 @@ namespace Grass.Core
             Vector3 cameraPosition = _mainCamera.transform.position;
             float maxDistanceSqr = maxDrawDistance > 0f ? maxDrawDistance * maxDrawDistance : 0f;
 
-            uint indexCount = mesh.GetIndexCount(0);
-            uint startIndex = mesh.GetIndexStart(0);
-
             for (int chunkIndex = 0; chunkIndex < _runtimeData.chunks.Length; chunkIndex++)
             {
                 GrassChunk chunk = _runtimeData.chunks[chunkIndex];
@@ -288,7 +519,7 @@ namespace Grass.Core
                 if (maxDistanceSqr > 0f && chunk.bounds.SqrDistance(cameraPosition) > maxDistanceSqr)
                     continue;
 
-                if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, chunk.bounds))
+                if (!TestPlanesAABB(_frustumPlanes, chunk.bounds))
                     continue;
 
                 _visibleChunks[chunkIndex] = true;
@@ -306,17 +537,34 @@ namespace Grass.Core
                         continue;
 
                     _visibleRangeCount++;
-                    AddVisibleCommand(renderData, range, indexCount, startIndex);
+                    AddVisibleRange(renderData, range);
                 }
             }
+
+            uint indexCount = mesh.GetIndexCount(0);
+            uint startIndex = mesh.GetIndexStart(0);
 
             for (int i = 0; i < _renderDataList.Count; i++)
             {
                 MaterialRenderData renderData = _renderDataList[i];
-                _visibleDrawCommandCount += renderData.visibleCommandCount;
+                if (renderData.visibleInstanceCount == 0)
+                    continue;
 
-                if (renderData.visibleCommandCount > 0)
-                    renderData.commandBuffer.SetData(renderData.commands, 0, 0, renderData.visibleCommandCount);
+                renderData.visibleInstanceBuffer.SetData(renderData.visibleInstances, 0, 0,
+                    renderData.visibleInstanceCount);
+
+                renderData.command[0] = new GraphicsBuffer.IndirectDrawIndexedArgs
+                {
+                    indexCountPerInstance = indexCount,
+                    instanceCount = (uint)renderData.visibleInstanceCount,
+                    startIndex = startIndex,
+                    baseVertexIndex = 0,
+                    startInstance = 0
+                };
+
+                renderData.commandBuffer.SetData(renderData.command);
+                renderData.visibleCommandCount = 1;
+                _visibleDrawCommandCount++;
             }
 
             _cachedCameraPosition = _mainCamera.transform.position;
@@ -324,42 +572,36 @@ namespace Grass.Core
             _commandsDirty = false;
         }
 
-        private static void AddVisibleCommand(MaterialRenderData renderData, GrassDrawRange range, uint indexCount,
-            uint startIndex)
+        private void AddVisibleRange(MaterialRenderData renderData, GrassDrawRange range)
         {
-            uint rangeStart = (uint)range.startInstance;
-            uint rangeCount = (uint)range.instanceCount;
-            int previousIndex = renderData.visibleCommandCount - 1;
+            Array.Copy(_runtimeData.instances, range.startInstance, renderData.visibleInstances,
+                renderData.visibleInstanceCount, range.instanceCount);
+            renderData.visibleInstanceCount += range.instanceCount;
+        }
 
-            if (previousIndex >= 0)
+        private static bool TestPlanesAABB(Plane[] planes, Bounds bounds)
+        {
+            Vector3 center = bounds.center;
+            Vector3 extents = bounds.extents;
+
+            for (int i = 0; i < planes.Length; i++)
             {
-                GraphicsBuffer.IndirectDrawIndexedArgs previous = renderData.commands[previousIndex];
-                uint previousEnd = previous.startInstance + previous.instanceCount;
+                Vector3 normal = planes[i].normal;
+                float radius = extents.x * Mathf.Abs(normal.x) + extents.y * Mathf.Abs(normal.y) +
+                               extents.z * Mathf.Abs(normal.z);
+                float distance = Vector3.Dot(normal, center) + planes[i].distance;
 
-                if (previous.indexCountPerInstance == indexCount && previous.startIndex == startIndex &&
-                    previous.baseVertexIndex == 0 && previousEnd == rangeStart)
-                {
-                    previous.instanceCount += rangeCount;
-                    renderData.commands[previousIndex] = previous;
-                    return;
-                }
+                if (distance + radius < 0f)
+                    return false;
             }
 
-            int commandIndex = renderData.visibleCommandCount++;
-            renderData.commands[commandIndex] = new GraphicsBuffer.IndirectDrawIndexedArgs
-            {
-                indexCountPerInstance = indexCount,
-                instanceCount = rangeCount,
-                startIndex = startIndex,
-                baseVertexIndex = 0,
-                startInstance = rangeStart
-            };
+            return true;
         }
 
         private void BindStaticMaterialProperties(MaterialRenderData renderData)
         {
-            renderData.propertyBlock.SetBuffer(SourcePositionGrass, _instanceBuffer);
-            renderData.propertyBlock.SetFloat(InstancedBaseId, 0f);
+            renderData.propertyBlock.SetBuffer(SourcePositionGrass, renderData.visibleInstanceBuffer);
+            renderData.propertyBlock.SetFloat(InstancedBaseId, renderData.objectId);
             BindRootMaterialProperties(renderData.propertyBlock, renderData.material);
             BindLightmapProperties(renderData.propertyBlock, renderData.material);
         }
@@ -476,6 +718,9 @@ namespace Grass.Core
 
         private void SyncMaterialKeywords(Material material)
         {
+            if (material.HasProperty("_AlphaClip"))
+                material.SetFloat("_AlphaClip", 1f);
+
             material.EnableKeyword("_ALPHATEST_ON");
 
             if (_rootMeshMaterial == null)
@@ -556,12 +801,19 @@ namespace Grass.Core
             _initialized = false;
             _commandsDirty = true;
 
-            _instanceBuffer?.Release();
-            _instanceBuffer = null;
+            _allInstancesBuffer?.Release();
+            _allInstancesBuffer = null;
+            _chunkBuffer?.Release();
+            _chunkBuffer = null;
+            _rangeBuffer?.Release();
+            _rangeBuffer = null;
+            _gpuCullKernel = -1;
+            _useGpuCullingRuntime = false;
 
             for (int i = 0; i < _renderDataList.Count; i++)
             {
                 _renderDataList[i].commandBuffer?.Release();
+                _renderDataList[i].visibleInstanceBuffer?.Release();
                 _renderDataList[i].propertyBlock?.Clear();
             }
 
@@ -586,7 +838,13 @@ namespace Grass.Core
             chunkGridResolution = Mathf.Max(1, chunkGridResolution);
             boundsPadding = Mathf.Max(0f, boundsPadding);
             maxDrawDistance = Mathf.Max(0f, maxDrawDistance);
+            cullingPositionThreshold = Mathf.Max(0f, cullingPositionThreshold);
+            cullingRotationThreshold = Mathf.Max(0f, cullingRotationThreshold);
             _commandsDirty = true;
+
+            if (frustumCullingCompute == null)
+                frustumCullingCompute = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                    "Assets/_Graphics/Foliage/Shaders/GrassFrustumCulling.compute");
 
             string currentPath = GrassDataSource != null ? AssetDatabase.GetAssetPath(GrassDataSource) : string.Empty;
             if (lastAttachedGrassDataSourcePath != currentPath)
@@ -647,6 +905,11 @@ namespace Grass.Core
             }
 #endif
             mesh = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
+#if UNITY_EDITOR
+            if (frustumCullingCompute == null)
+                frustumCullingCompute = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                    "Assets/_Graphics/Foliage/Shaders/GrassFrustumCulling.compute");
+#endif
         }
     }
 }

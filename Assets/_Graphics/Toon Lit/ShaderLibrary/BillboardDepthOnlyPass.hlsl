@@ -61,9 +61,7 @@ struct Attributes
 
 struct Varyings
 {
-    #if defined(_ALPHATEST_ON)
-        float2 uv       : TEXCOORD0;
-    #endif
+    float2 uv           : TEXCOORD0;
     float3 positionWS   : TEXCOORD1; // For texture array sampling
     float4 positionCS   : SV_POSITION;
     UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -86,9 +84,7 @@ Varyings DepthOnlyVertex(Attributes input)
         return output;
     }
 
-    #if defined(_ALPHATEST_ON)
-        output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
-    #endif
+    output.uv = input.texcoord;
 
     VertexPositionInputs vertexInput = GetVertexPositionInputs(input.position.xyz);
 
@@ -119,10 +115,8 @@ half DepthOnlyFragment(Varyings input) : SV_Depth
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-    #if defined(_ALPHATEST_ON)
-        half4 clipSample = SampleTextureArray(input.uv, textureIndex);
-        clip(clipSample.a - 0.5);
-    #endif
+    half4 clipSample = SampleTextureArray(input.uv, textureIndex);
+    clip(clipSample.a - _Cutoff);
     
     return input.positionCS.z;
 }

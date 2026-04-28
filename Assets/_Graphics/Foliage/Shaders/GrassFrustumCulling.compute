@@ -1,90 +1,90 @@
-// GPU Frustum Culling Compute Shader for Grass System
-// Performs parallel AABB frustum culling for octree chunks
+#pragma kernel CullAndCompact
 
-#pragma kernel FrustumCull
+struct GrassData
+{
+    float3 position;
+    float3 normal;
+    float2 lightmapUV;
+    int materialIndex;
+};
 
-// Input: Octree chunk data
 struct ChunkData
 {
-    float3 boundsCenter;
-    float3 boundsExtents;
-    uint startInstance;
-    uint instanceCount;
+    float3 center;
+    int firstRange;
+    float3 extents;
+    int rangeCount;
 };
 
-// Output: Visible chunk indices
-struct VisibleChunk
+struct RangeData
 {
-    uint chunkIndex;
-    uint startInstance;
-    uint instanceCount;
+    int materialIndex;
+    int startInstance;
+    int instanceCount;
+    int padding;
 };
 
-// Frustum planes (6 planes: left, right, bottom, top, near, far)
-// Each plane stored as float4(normal.xyz, distance)
-cbuffer FrustumPlanes
-{
-    float4 _FrustumPlanes[6];
-};
+StructuredBuffer<GrassData> _AllGrassInstances;
+StructuredBuffer<ChunkData> _Chunks;
+StructuredBuffer<RangeData> _Ranges;
+AppendStructuredBuffer<GrassData> _VisibleGrass;
 
-// Input/Output buffers
-StructuredBuffer<ChunkData> _ChunkBuffer;           // All octree chunks
-RWStructuredBuffer<VisibleChunk> _VisibleChunks;    // Output visible chunks
-RWStructuredBuffer<uint> _VisibleChunkCount;        // Atomic counter for visible chunks
+float4 _FrustumPlanes[6];
+float3 _CameraPosition;
+float _MaxDrawDistanceSquared;
+int _ChunkCount;
+int _MaterialIndex;
 
-// Test if AABB is visible against frustum planes
-// Returns true if AABB intersects or is inside frustum
 bool IsAABBVisible(float3 center, float3 extents)
 {
-    // Test against all 6 frustum planes
     [unroll]
     for (int i = 0; i < 6; i++)
     {
         float3 normal = _FrustumPlanes[i].xyz;
-        float distance = _FrustumPlanes[i].w;
-        
-        // Calculate the positive extent (furthest point on the AABB in the direction of the plane normal)
-        float3 positiveExtent = extents * sign(normal);
-        
-        // If the furthest point is outside (behind) the plane, AABB is completely outside
-        float d = dot(normal, center + positiveExtent) + distance;
-        
-        if (d < 0.0)
-            return false; // Outside this plane
+        float radius = dot(extents, abs(normal));
+        float distance = dot(normal, center) + _FrustumPlanes[i].w;
+
+        if (distance + radius < 0.0)
+            return false;
     }
-    
-    return true; // Inside or intersecting all planes
+
+    return true;
 }
 
 [numthreads(64, 1, 1)]
-void FrustumCull(uint3 id : SV_DispatchThreadID)
+void CullAndCompact(uint3 id : SV_DispatchThreadID)
 {
     uint chunkIndex = id.x;
-    
-    // Bounds check
-    uint numChunks;
-    uint stride;
-    _ChunkBuffer.GetDimensions(numChunks, stride);
-    
-    if (chunkIndex >= numChunks)
+    if (chunkIndex >= (uint)_ChunkCount)
         return;
-    
-    // Load chunk data
-    ChunkData chunk = _ChunkBuffer[chunkIndex];
-    
-    // Perform frustum culling test
-    if (IsAABBVisible(chunk.boundsCenter, chunk.boundsExtents))
+
+    ChunkData chunk = _Chunks[chunkIndex];
+    float3 center = chunk.center;
+    float3 extents = chunk.extents;
+
+    if (_MaxDrawDistanceSquared > 0.0)
     {
-        // Chunk is visible - add to output buffer
-        uint outputIndex;
-        InterlockedAdd(_VisibleChunkCount[0], 1, outputIndex);
-        
-        // Write visible chunk data
-        VisibleChunk visibleChunk;
-        visibleChunk.chunkIndex = chunkIndex;
-        visibleChunk.startInstance = chunk.startInstance;
-        visibleChunk.instanceCount = chunk.instanceCount;
-        
-        _VisibleChunks[outputIndex] = visibleChunk;
+        float3 closest = clamp(_CameraPosition, center - extents, center + extents);
+        float3 delta = closest - _CameraPosition;
+        if (dot(delta, delta) > _MaxDrawDistanceSquared)
+            return;
+    }
+
+    if (!IsAABBVisible(center, extents))
+        return;
+
+    int firstRange = chunk.firstRange;
+    int rangeCount = chunk.rangeCount;
+    int endRange = firstRange + rangeCount;
+
+    for (int rangeIndex = firstRange; rangeIndex < endRange; rangeIndex++)
+    {
+        RangeData range = _Ranges[rangeIndex];
+        if (range.materialIndex != _MaterialIndex)
+            continue;
+
+        int endInstance = range.startInstance + range.instanceCount;
+        for (int instanceIndex = range.startInstance; instanceIndex < endInstance; instanceIndex++)
+            _VisibleGrass.Append(_AllGrassInstances[instanceIndex]);
     }
 }

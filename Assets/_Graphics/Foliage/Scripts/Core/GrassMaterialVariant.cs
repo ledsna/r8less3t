@@ -273,6 +273,9 @@ namespace Grass.Core
 
         private static void ConfigureMaterialKeywords(GrassVariant variant)
         {
+            if (variant.material.HasProperty("_AlphaClip"))
+                variant.material.SetFloat("_AlphaClip", 1f);
+
             if (variant.useTextureColor || variant.kind == GrassVariantKind.Flower)
                 variant.material.EnableKeyword("_USE_TEXTURE_COLOR");
             else

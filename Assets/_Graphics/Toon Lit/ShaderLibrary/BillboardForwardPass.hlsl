@@ -334,7 +334,7 @@ Varyings LitPassVertex(Attributes input)
 
     half fogFactor = ComputeFogFactor(vertexInput.positionCS.z);
 
-    output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
+    output.uv = input.texcoord;
 
     // Use the perturbed normal from the underlying mesh (already in WS)
     output.normalWS = normalize(perturbedNormal);
@@ -387,8 +387,8 @@ void LitPassFragment(
 
     half4 textureColor = SampleTextureArray(input.uv, textureIndex);
 
-    // Early alpha clip
-    clip(textureColor.a - 0.5);
+    // Billboard sprites must always clip depth/object-ID to their opaque silhouette.
+    clip(textureColor.a - _Cutoff);
 
     SurfaceData surfaceData;
 

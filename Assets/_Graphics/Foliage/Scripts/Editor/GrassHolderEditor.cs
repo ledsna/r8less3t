@@ -13,7 +13,11 @@ namespace Grass.Editor
         private SerializedProperty normalLimit;
         private SerializedProperty chunkGridResolution;
         private SerializedProperty boundsPadding;
+        private SerializedProperty useGpuCulling;
+        private SerializedProperty frustumCullingCompute;
         private SerializedProperty maxDrawDistance;
+        private SerializedProperty cullingPositionThreshold;
+        private SerializedProperty cullingRotationThreshold;
         private SerializedProperty drawBounds;
         private SerializedProperty highlightRenderedCells;
         private SerializedProperty GrassDataSource;
@@ -27,7 +31,11 @@ namespace Grass.Editor
             normalLimit = serializedObject.FindProperty("normalLimit");
             chunkGridResolution = serializedObject.FindProperty("chunkGridResolution");
             boundsPadding = serializedObject.FindProperty("boundsPadding");
+            useGpuCulling = serializedObject.FindProperty("useGpuCulling");
+            frustumCullingCompute = serializedObject.FindProperty("frustumCullingCompute");
             maxDrawDistance = serializedObject.FindProperty("maxDrawDistance");
+            cullingPositionThreshold = serializedObject.FindProperty("cullingPositionThreshold");
+            cullingRotationThreshold = serializedObject.FindProperty("cullingRotationThreshold");
             drawBounds = serializedObject.FindProperty("drawBounds");
             highlightRenderedCells = serializedObject.FindProperty("highlightRenderedCells");
             GrassDataSource = serializedObject.FindProperty("GrassDataSource");
@@ -75,7 +83,12 @@ namespace Grass.Editor
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Rendering Settings", EditorStyles.boldLabel);
             DrawRenderingLayerMaskField();
+            EditorGUILayout.PropertyField(useGpuCulling, new GUIContent("Use GPU Culling"));
+            if (useGpuCulling.boolValue)
+                EditorGUILayout.PropertyField(frustumCullingCompute, new GUIContent("Culling Compute"));
             EditorGUILayout.PropertyField(maxDrawDistance, new GUIContent("Max Draw Distance"));
+            EditorGUILayout.PropertyField(cullingPositionThreshold, new GUIContent("Culling Position Threshold"));
+            EditorGUILayout.PropertyField(cullingRotationThreshold, new GUIContent("Culling Rotation Threshold"));
 
             // Culling Options
             EditorGUILayout.Space();

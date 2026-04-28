@@ -27,7 +27,6 @@ Material:
   m_ValidKeywords:
   - LIGHTMAP_SHADOW_MIXING
   - SHADOWS_SHADOWMASK
-  - _ALPHATEST_ON
   - _SPECULAR_SETUP
   - _USE_TEXTURE_COLOR
   m_InvalidKeywords:
@@ -212,7 +211,7 @@ Material:
     - _RingOffset: 1
     - _RingWidth: 1
     - _SaturationSteps: -1
-    - _Scale: 0.55
+    - _Scale: 0.25
     - _ShadowSteps: -1
     - _Smoothness: 0.2
     - _SmoothnessTextureChannel: 1

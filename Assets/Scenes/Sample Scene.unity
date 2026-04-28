@@ -547,13 +547,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 154201490}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.7201124, y: 0.29869378, z: -0.52531755, w: -0.34097156}
+  m_LocalRotation: {x: -0.24964972, y: 0.54639, z: -0.23974672, w: -0.7626627}
   m_LocalPosition: {x: -54.913826, y: 47.411583, z: 28.24339}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1971187513}
-  m_LocalEulerAnglesHint: {x: 126.4, y: 291.3, z: 6.964}
+  m_LocalEulerAnglesHint: {x: 40, y: 291.3, z: 6.964}
 --- !u!114 &154201494
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -778,14 +778,25 @@ MonoBehaviour:
     - name: Grass
       material: {fileID: 2100000, guid: 36c48e9c15b3e4c76ada08f93dd73b1a, type: 2}
       kind: 0
-      weight: 0.001
+      weight: 100
       useTextureColor: 0
-      clumpScale: 0
+      clumpScale: 2
       clumpThreshold: 0
-      clumpDensity: 0
+      clumpDensity: 1
       seed: 0
-      normalNudgeProbability: 0
-      normalNudgeStrength: 0
+      normalNudgeProbability: 0.2
+      normalNudgeStrength: 0.1
+    - name: Stars
+      material: {fileID: 2100000, guid: 2fcc0c125592d43ed8e7313ee0f88e82, type: 2}
+      kind: 1
+      weight: 1
+      useTextureColor: 1
+      clumpScale: 0.015
+      clumpThreshold: 0
+      clumpDensity: 0.01
+      seed: 0
+      normalNudgeProbability: 0.2
+      normalNudgeStrength: 0.1
     grassGroups:
     - material: {fileID: 2100000, guid: 36c48e9c15b3e4c76ada08f93dd73b1a, type: 2}
       weight: 10
@@ -808,8 +819,14 @@ MonoBehaviour:
   chunkGridResolution: 16
   boundsPadding: 1
   renderingLayerMask: 8
+  useGpuCulling: 1
+  frustumCullingCompute: {fileID: 7200000, guid: a1b2c3d4e5f6789012345678901234ab,
+    type: 3}
   maxDrawDistance: 200
-  drawBounds: 1
+  cullingPositionThreshold: 0.2
+  cullingRotationThreshold: 1
+  drawBounds: 0
+  highlightRenderedCells: 0
   GrassDataSource: {fileID: 5552072581454539892, guid: f9a7eff9704304efdb43602bebe715c9,
     type: 3}
   lastAttachedGrassDataSourcePath: Assets/Scenes/New Grass Data.grassdata
@@ -5532,8 +5549,18 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -2709428406725389403, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -2709428406725389403, guid: d5ce4dda292074ce9a25f4988d2d0932,
+        type: 3}
       propertyPath: GlobalObjectIdHash
       value: 3873408147
+      objectReference: {fileID: 0}
+    - target: {fileID: -2709428406725389403, guid: d5ce4dda292074ce9a25f4988d2d0932,
+        type: 3}
+      propertyPath: SceneMigrationSynchronization
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 29514122196050652, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
@@ -5930,6 +5957,11 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 3
       objectReference: {fileID: 0}
+    - target: {fileID: 5463172688871036806, guid: d5ce4dda292074ce9a25f4988d2d0932,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5474854384387175340, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
       propertyPath: m_Layer
@@ -5989,6 +6021,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Layer
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 6096795291685946967, guid: d5ce4dda292074ce9a25f4988d2d0932,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6129393081146913171, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
@@ -6259,10 +6296,6 @@ PrefabInstance:
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 1321646245872180658, guid: d5ce4dda292074ce9a25f4988d2d0932,
-        type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1826402425}
     - targetCorrespondingSourceObject: {fileID: 4000902804249313039, guid: d5ce4dda292074ce9a25f4988d2d0932,
         type: 3}
       insertIndex: -1
@@ -6454,7 +6487,7 @@ MonoBehaviour:
     type: 3}
   m_PrefabInstance: {fileID: 1311770053}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1826402414}
+  m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4d553d3bb508e4a80876dd61b56d699c, type: 3}
@@ -6969,24 +7002,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Feature.PixelArt::WriteRendererID
   useOverrideID: 0
   overrideID: 0
---- !u!1 &1826402414 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 1321646245872180658, guid: d5ce4dda292074ce9a25f4988d2d0932,
-    type: 3}
-  m_PrefabInstance: {fileID: 1311770053}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1826402425
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1826402414}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ec91dd256870f4a558954c13f98b0e30, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Features::Ledsna.Water.WaterRippleTrigger
 --- !u!1001 &1868162272
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -8382,7 +8397,7 @@ Transform:
   m_GameObject: {fileID: 4254914719877248578}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0.9961947, z: -0.08715578, w: 0}
-  m_LocalPosition: {x: 22.72985, y: 5.036641, z: -52.169773}
+  m_LocalPosition: {x: 22.034416, y: 4.9610004, z: -51.80911}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
