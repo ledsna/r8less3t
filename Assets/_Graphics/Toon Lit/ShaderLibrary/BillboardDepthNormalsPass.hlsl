@@ -80,11 +80,11 @@ Varyings DepthNormalsVertex(Attributes input)
     // Note: normalWS is global from Setup() in BillboardGpuInstance.hlsl
     float3 viewDirToCamera = GetWorldSpaceNormalizeViewDir(positionWS);
     float terrainFacing = dot(normalWS, viewDirToCamera);
-    if (terrainFacing < -0.2)
-    {
-        output.positionCS = float4(0, 0, 0, 0);
-        return output;
-    }
+    // if (terrainFacing < -0.2)
+    // {
+    //     output.positionCS = float4(0, 0, 0, 0);
+    //     return output;
+    // }
 
     output.uv = input.texcoord;
 

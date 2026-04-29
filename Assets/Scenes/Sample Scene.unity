@@ -786,17 +786,6 @@ MonoBehaviour:
       seed: 0
       normalNudgeProbability: 0.2
       normalNudgeStrength: 0.1
-    - name: Stars
-      material: {fileID: 2100000, guid: 2fcc0c125592d43ed8e7313ee0f88e82, type: 2}
-      kind: 1
-      weight: 1
-      useTextureColor: 1
-      clumpScale: 0.015
-      clumpThreshold: 0
-      clumpDensity: 0.01
-      seed: 0
-      normalNudgeProbability: 0.2
-      normalNudgeStrength: 0.1
     grassGroups:
     - material: {fileID: 2100000, guid: 36c48e9c15b3e4c76ada08f93dd73b1a, type: 2}
       weight: 10
@@ -816,7 +805,7 @@ MonoBehaviour:
     grassNormalNudgeProbability: 0.01
     grassClusterScale: 0.2
   normalLimit: 1
-  chunkGridResolution: 16
+  chunkGridResolution: 64
   boundsPadding: 1
   renderingLayerMask: 8
   useGpuCulling: 1
@@ -825,7 +814,7 @@ MonoBehaviour:
   maxDrawDistance: 200
   cullingPositionThreshold: 0.2
   cullingRotationThreshold: 1
-  drawBounds: 0
+  drawBounds: 1
   highlightRenderedCells: 0
   GrassDataSource: {fileID: 5552072581454539892, guid: f9a7eff9704304efdb43602bebe715c9,
     type: 3}
