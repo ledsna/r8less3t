@@ -12,15 +12,15 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
-  - LIGHTMAP_SHADOW_MIXING
   - SHADOWS_SHADOWMASK
   - _ALPHATEST_ON
   - _SPECULAR_SETUP
   m_InvalidKeywords:
   - MAIN_LIGHT_CALCULATE_SHADOWS
+  - _GRASS_CLUSTER_RENDERING
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 1
-  m_DoubleSidedGI: 0
+  m_DoubleSidedGI: 1
   m_CustomRenderQueue: 2450
   stringTagMap:
     RenderType: TransparentCutout
@@ -134,7 +134,7 @@ Material:
     - _BumpScale: 1
     - _Concave: 0
     - _Convex: 0
-    - _Cull: 2
+    - _Cull: 0
     - _Cutoff: 0.5
     - _DEBUG_CULL_MASK: 0
     - _DebugOn: 0

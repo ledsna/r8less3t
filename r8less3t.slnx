@@ -9,6 +9,7 @@
   <Project Path="NaughtyAttributes.Editor.csproj" />
   <Project Path="VolumetricFog.Core.csproj" />
   <Project Path="WorleyNoiseEdiitor.Editor.csproj" />
+  <Project Path="Feature.Grass.Editor.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.2D.Editor.Overrides.csproj" />
   <Project Path="Project.Editor.csproj" />
   <Project Path="NaughtyAttributes.Test.csproj" />
@@ -17,7 +18,6 @@
   <Project Path="ParrelSync.csproj" />
   <Project Path="Project.Shared.Runtime.csproj" />
   <Project Path="BetterHierarchyDemoScripts.csproj" />
-  <Project Path="Feature.Grass.Editor.csproj" />
   <Project Path="ASoliman.Utils.ClipboardPlus.csproj" />
   <Project Path="Feature.Grass.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Runtime.Tests.csproj" />

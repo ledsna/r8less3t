@@ -21,10 +21,10 @@ namespace Grass.Core
         private static readonly int FlowerSizeVariation = Shader.PropertyToID("_FlowerSizeVariation");
         private static readonly int FlowerCameraNudge = Shader.PropertyToID("_FlowerCameraNudge");
 
-        private static readonly int AllGrassInstances = Shader.PropertyToID("_AllGrassInstances");
         private static readonly int Chunks = Shader.PropertyToID("_Chunks");
         private static readonly int Ranges = Shader.PropertyToID("_Ranges");
-        private static readonly int VisibleGrass = Shader.PropertyToID("_VisibleGrass");
+        private static readonly int VisibleInstanceIndices = Shader.PropertyToID("_VisibleInstanceIndices");
+        private static readonly int UseVisibleInstanceIndices = Shader.PropertyToID("_UseVisibleInstanceIndices");
         private static readonly int FrustumPlanes = Shader.PropertyToID("_FrustumPlanes");
         private static readonly int CameraPosition = Shader.PropertyToID("_CameraPosition");
         private static readonly int MaxDrawDistanceSquared = Shader.PropertyToID("_MaxDrawDistanceSquared");
@@ -74,7 +74,7 @@ namespace Grass.Core
         [SerializeField, Min(0f), Tooltip("Camera rotation in degrees required before rebuilding visible grass buffers.")]
         private float cullingRotationThreshold = 1f;
         [SerializeField] private bool drawBounds;
-        [SerializeField] private bool highlightRenderedCells = true;
+        [SerializeField] private bool highlightRenderedCells;
 
         [FileAsset(".grassdata"), SerializeField]
         public GrassDataAsset GrassDataSource;
@@ -92,9 +92,14 @@ namespace Grass.Core
             public GraphicsBuffer commandBuffer;
             public GraphicsBuffer.IndirectDrawIndexedArgs[] command;
             public ComputeBuffer visibleInstanceBuffer;
+            public ComputeBuffer visibleIndexBuffer;
             public GrassData[] visibleInstances;
             public int visibleInstanceCount;
             public int visibleCommandCount;
+            public bool hasScale;
+            public bool hasFlowerSizeMultiplier;
+            public bool hasFlowerSizeVariation;
+            public bool hasFlowerCameraNudge;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -126,6 +131,7 @@ namespace Grass.Core
         private Camera _mainCamera;
         private Vector3 _cachedCameraPosition;
         private Quaternion _cachedCameraRotation;
+        private Matrix4x4 _currentRotationMatrix;
         private bool[] _visibleChunks = Array.Empty<bool>();
         private int _visibleChunkCount;
         private int _visibleRangeCount;
@@ -180,6 +186,14 @@ namespace Grass.Core
         {
             _runtimeData = null;
             _commandsDirty = true;
+        }
+
+        public void PrepareForRegeneration()
+        {
+            ReleaseRuntimeResources();
+            grassData.Clear();
+            ClearRuntimeData();
+            SetGrassClearedFlag(false);
         }
 
         public void Reinitialize()
@@ -241,12 +255,18 @@ namespace Grass.Core
                     command = new GraphicsBuffer.IndirectDrawIndexedArgs[1],
                     commandBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1,
                         GraphicsBuffer.IndirectDrawIndexedArgs.size),
-                    visibleInstances = new GrassData[instanceCapacity],
+                    visibleInstances = _useGpuCullingRuntime ? Array.Empty<GrassData>() : new GrassData[instanceCapacity],
                     visibleInstanceBuffer = _useGpuCullingRuntime
-                        ? new ComputeBuffer(instanceCapacity, GrassRuntimeBuilder.GrassDataStride,
-                            ComputeBufferType.Append)
+                        ? null
                         : new ComputeBuffer(instanceCapacity, GrassRuntimeBuilder.GrassDataStride,
-                            ComputeBufferType.Structured, ComputeBufferMode.Dynamic)
+                            ComputeBufferType.Structured, ComputeBufferMode.Dynamic),
+                    visibleIndexBuffer = _useGpuCullingRuntime
+                        ? new ComputeBuffer(instanceCapacity, sizeof(uint), ComputeBufferType.Append)
+                        : null,
+                    hasScale = materials[materialIndex].HasProperty(Scale),
+                    hasFlowerSizeMultiplier = materials[materialIndex].HasProperty(FlowerSizeMultiplier),
+                    hasFlowerSizeVariation = materials[materialIndex].HasProperty(FlowerSizeVariation),
+                    hasFlowerCameraNudge = materials[materialIndex].HasProperty(FlowerCameraNudge)
                 };
 
                 renderData.command[0] = CreateCommandArgs(0);
@@ -327,7 +347,6 @@ namespace Grass.Core
                 ComputeBufferMode.Immutable);
             _rangeBuffer.SetData(rangeData);
 
-            frustumCullingCompute.SetBuffer(_gpuCullKernel, AllGrassInstances, _allInstancesBuffer);
             frustumCullingCompute.SetBuffer(_gpuCullKernel, Chunks, _chunkBuffer);
             frustumCullingCompute.SetBuffer(_gpuCullKernel, Ranges, _rangeBuffer);
             frustumCullingCompute.SetInt(ChunkCount, _runtimeData.chunks.Length);
@@ -377,6 +396,8 @@ namespace Grass.Core
                     RebuildVisibleCommands();
             }
 
+            _currentRotationMatrix = GetRotationMatrix();
+
             for (int i = 0; i < _renderDataList.Count; i++)
             {
                 MaterialRenderData renderData = _renderDataList[i];
@@ -412,7 +433,7 @@ namespace Grass.Core
             Vector3 cameraPosition = _mainCamera.transform.position;
             float maxDistanceSqr = maxDrawDistance > 0f ? maxDrawDistance * maxDrawDistance : 0f;
 
-            if (highlightRenderedCells)
+            if (ShouldUpdateVisibleChunkDebug())
                 UpdateVisibleChunkDebug(cameraPosition, maxDistanceSqr);
             else
                 ClearVisibleChunkDebug();
@@ -421,20 +442,17 @@ namespace Grass.Core
             frustumCullingCompute.SetVectorArray(FrustumPlanes, _frustumPlaneVectors);
             frustumCullingCompute.SetVector(CameraPosition, cameraPosition);
             frustumCullingCompute.SetFloat(MaxDrawDistanceSquared, maxDistanceSqr);
-
             int threadGroups = Mathf.CeilToInt(_runtimeData.chunks.Length / (float)ComputeThreadGroupSize);
 
             for (int i = 0; i < _renderDataList.Count; i++)
             {
                 MaterialRenderData renderData = _renderDataList[i];
-                renderData.visibleInstanceBuffer.SetCounterValue(0);
-                renderData.command[0] = CreateCommandArgs(0);
-                renderData.commandBuffer.SetData(renderData.command);
+                renderData.visibleIndexBuffer.SetCounterValue(0);
 
                 frustumCullingCompute.SetInt(MaterialIndex, renderData.materialIndex);
-                frustumCullingCompute.SetBuffer(_gpuCullKernel, VisibleGrass, renderData.visibleInstanceBuffer);
+                frustumCullingCompute.SetBuffer(_gpuCullKernel, VisibleInstanceIndices, renderData.visibleIndexBuffer);
                 frustumCullingCompute.Dispatch(_gpuCullKernel, threadGroups, 1, 1);
-                GraphicsBuffer.CopyCount(renderData.visibleInstanceBuffer, renderData.commandBuffer,
+                GraphicsBuffer.CopyCount(renderData.visibleIndexBuffer, renderData.commandBuffer,
                     IndirectInstanceCountOffset);
 
                 renderData.visibleCommandCount = 1;
@@ -484,11 +502,17 @@ namespace Grass.Core
 
         private void ClearVisibleChunkDebug()
         {
-            if (_visibleChunks.Length > 0)
-                Array.Clear(_visibleChunks, 0, _visibleChunks.Length);
-
             _visibleChunkCount = 0;
             _visibleRangeCount = 0;
+        }
+
+        private bool ShouldUpdateVisibleChunkDebug()
+        {
+#if UNITY_EDITOR
+            return highlightRenderedCells;
+#else
+            return false;
+#endif
         }
 
         private void RebuildVisibleCommands()
@@ -600,7 +624,13 @@ namespace Grass.Core
 
         private void BindStaticMaterialProperties(MaterialRenderData renderData)
         {
-            renderData.propertyBlock.SetBuffer(SourcePositionGrass, renderData.visibleInstanceBuffer);
+            renderData.propertyBlock.SetBuffer(SourcePositionGrass,
+                _useGpuCullingRuntime ? _allInstancesBuffer : renderData.visibleInstanceBuffer);
+            renderData.propertyBlock.SetFloat(UseVisibleInstanceIndices, _useGpuCullingRuntime ? 1f : 0f);
+
+            if (_useGpuCullingRuntime)
+                renderData.propertyBlock.SetBuffer(VisibleInstanceIndices, renderData.visibleIndexBuffer);
+
             renderData.propertyBlock.SetFloat(InstancedBaseId, renderData.objectId);
             BindRootMaterialProperties(renderData.propertyBlock, renderData.material);
             BindLightmapProperties(renderData.propertyBlock, renderData.material);
@@ -608,15 +638,15 @@ namespace Grass.Core
 
         private void BindDynamicMaterialProperties(MaterialRenderData renderData)
         {
-            float materialScale = renderData.material.HasProperty(Scale) ? renderData.material.GetFloat(Scale) : 1f;
-            renderData.propertyBlock.SetMatrix(RotationScaleMatrix, GetRotationMatrix());
+            float materialScale = renderData.hasScale ? renderData.material.GetFloat(Scale) : 1f;
+            renderData.propertyBlock.SetMatrix(RotationScaleMatrix, _currentRotationMatrix);
             renderData.propertyBlock.SetFloat(Scale, materialScale);
 
-            if (renderData.material.HasProperty(FlowerSizeMultiplier))
+            if (renderData.hasFlowerSizeMultiplier)
                 renderData.propertyBlock.SetFloat(FlowerSizeMultiplier, renderData.material.GetFloat(FlowerSizeMultiplier));
-            if (renderData.material.HasProperty(FlowerSizeVariation))
+            if (renderData.hasFlowerSizeVariation)
                 renderData.propertyBlock.SetFloat(FlowerSizeVariation, renderData.material.GetFloat(FlowerSizeVariation));
-            if (renderData.material.HasProperty(FlowerCameraNudge))
+            if (renderData.hasFlowerCameraNudge)
                 renderData.propertyBlock.SetFloat(FlowerCameraNudge, renderData.material.GetFloat(FlowerCameraNudge));
         }
 
@@ -718,6 +748,8 @@ namespace Grass.Core
 
         private void SyncMaterialKeywords(Material material)
         {
+            material.enableInstancing = true;
+
             if (material.HasProperty("_AlphaClip"))
                 material.SetFloat("_AlphaClip", 1f);
 
@@ -814,6 +846,7 @@ namespace Grass.Core
             {
                 _renderDataList[i].commandBuffer?.Release();
                 _renderDataList[i].visibleInstanceBuffer?.Release();
+                _renderDataList[i].visibleIndexBuffer?.Release();
                 _renderDataList[i].propertyBlock?.Clear();
             }
 

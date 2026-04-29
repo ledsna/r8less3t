@@ -63,6 +63,7 @@ struct Varyings
 {
     float2 uv           : TEXCOORD0;
     float3 positionWS   : TEXCOORD1; // For texture array sampling
+    nointerpolation int textureIndex : TEXCOORD2;
     float4 positionCS   : SV_POSITION;
     UNITY_VERTEX_INPUT_INSTANCE_ID
     UNITY_VERTEX_OUTPUT_STEREO
@@ -85,6 +86,7 @@ Varyings DepthOnlyVertex(Attributes input)
     }
 
     output.uv = input.texcoord;
+    output.textureIndex = textureIndex;
 
     VertexPositionInputs vertexInput = GetVertexPositionInputs(input.position.xyz);
 
@@ -115,7 +117,7 @@ half DepthOnlyFragment(Varyings input) : SV_Depth
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-    half4 clipSample = SampleTextureArray(input.uv, textureIndex);
+    half4 clipSample = SampleTextureArray(input.uv, input.textureIndex);
     clip(clipSample.a - _Cutoff);
     
     return input.positionCS.z;

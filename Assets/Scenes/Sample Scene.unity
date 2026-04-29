@@ -93,7 +93,7 @@ LightmapSettings:
     m_ExportTrainingData: 0
     m_TrainingDataDestination: TrainingData
     m_LightProbeSampleCountMultiplier: 4
-  m_LightingDataAsset: {fileID: 112000000, guid: a6fc6b05c566b4a3796be102fce7b79e,
+  m_LightingDataAsset: {fileID: 112000000, guid: 0c640111d8c05bcff97843f3c2eb744e,
     type: 2}
   m_LightingSettings: {fileID: 4890085278179872738, guid: 87c37c676967841c387aa9e4a94694aa,
     type: 2}
@@ -771,7 +771,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Feature.Grass::Grass.Core.GrassHolder
   _rootMeshMaterial: {fileID: 2100000, guid: 2dfa2a67c5ac67a4cb40da2796907586, type: 2}
-  lightmapIndex: -1
+  lightmapIndex: 0
   mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
   materialSystem:
     variants:
@@ -805,21 +805,21 @@ MonoBehaviour:
     grassNormalNudgeProbability: 0.01
     grassClusterScale: 0.2
   normalLimit: 1
-  chunkGridResolution: 64
+  chunkGridResolution: 16
   boundsPadding: 1
   renderingLayerMask: 8
   useGpuCulling: 1
   frustumCullingCompute: {fileID: 7200000, guid: a1b2c3d4e5f6789012345678901234ab,
     type: 3}
   maxDrawDistance: 200
-  cullingPositionThreshold: 0.2
-  cullingRotationThreshold: 1
-  drawBounds: 1
+  cullingPositionThreshold: 0
+  cullingRotationThreshold: 0
+  drawBounds: 0
   highlightRenderedCells: 0
   GrassDataSource: {fileID: 5552072581454539892, guid: f9a7eff9704304efdb43602bebe715c9,
     type: 3}
   lastAttachedGrassDataSourcePath: Assets/Scenes/New Grass Data.grassdata
-  grassWasCleared: 0
+  grassWasCleared: 1
 --- !u!1001 &224260104
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1525,7 +1525,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 6761e3ffae627ed41b250c0067e2ffa8,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 127
+      value: 2147483647
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -3103,7 +3103,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 8811281d3fb03234a9d3ce3e62dbd8cb,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 127
+      value: 2147483647
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -4666,7 +4666,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
+  m_StaticEditorFlags: 2147483647
   m_IsActive: 1
 --- !u!4 &1119535950
 Transform:
@@ -4798,7 +4798,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 77eb9eba61ea7f24fba0909d37050893,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 127
+      value: 2147483647
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -4910,7 +4910,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: ed07bf6a291a6a242acdeafa1e74813a,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 127
+      value: 2147483647
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5271,7 +5271,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: d6d0c47a7b07fe34da2d911e5a1841f4,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 127
+      value: 2147483647
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6459,7 +6459,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 717ccb0f9134f504abe0bfca96d3ba86,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 127
+      value: 2147483647
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6846,7 +6846,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: ca27b8116e6cde54fbf60ff83f3fa289,
         type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 127
+      value: 2147483647
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -8023,7 +8023,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 127
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!23 &124806032682975438
 MeshRenderer:
@@ -8983,7 +8983,7 @@ MeshRenderer:
   m_StaticBatchRoot: {fileID: 0}
   m_ProbeAnchor: {fileID: 0}
   m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
+  m_ScaleInLightmap: 0.5
   m_ReceiveGI: 1
   m_PreserveUVs: 0
   m_IgnoreNormalsForChartDetection: 0
@@ -9290,7 +9290,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 127
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!223 &4593988069032659444
 Canvas:
@@ -10742,7 +10742,7 @@ MeshRenderer:
   m_StaticBatchRoot: {fileID: 0}
   m_ProbeAnchor: {fileID: 0}
   m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
+  m_ScaleInLightmap: 0.5
   m_ReceiveGI: 1
   m_PreserveUVs: 0
   m_IgnoreNormalsForChartDetection: 0

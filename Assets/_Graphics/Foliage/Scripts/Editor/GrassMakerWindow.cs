@@ -12,13 +12,14 @@ namespace Grass.Editor
         private GameObject grassHolderObject;
 
         [SerializeField] private int grassCount = 1000;
+        [SerializeField] private bool clearBeforeGenerate = true;
 
         [HideInInspector] public int toolbarInt = 0;
 
         private GrassHolder _grassHolder;
         private Vector2 scrollPos;
         private int currentMainTabId;
-        private readonly string[] mainTabBarStrings = { "Paint", "Generate" };
+        private readonly string[] mainTabBarStrings = { "Generate", "Paint" };
         private bool paintModeActive;
         private readonly string[] toolbarStrings = { "Add", "Remove" };
         private float brushSize = 0.2f;
@@ -50,7 +51,7 @@ namespace Grass.Editor
             currentMainTabId = GUILayout.Toolbar(currentMainTabId, mainTabBarStrings, GUILayout.Height(30));
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.Separator();
-            grassHolderObject = (GameObject)EditorGUILayout.ObjectField("Grass Handle Object",
+            grassHolderObject = (GameObject)EditorGUILayout.ObjectField("Grass Holder",
                 grassHolderObject,
                 typeof(GameObject),
                 true);
@@ -83,10 +84,10 @@ namespace Grass.Editor
             switch (currentMainTabId)
             {
                 case 0:
-                    ShowPaintPanel();
+                    ShowGeneratePanel();
                     break;
                 case 1:
-                    ShowGeneratePanel();
+                    ShowPaintPanel();
                     break;
             }
 
@@ -132,6 +133,10 @@ namespace Grass.Editor
 
         private void ShowPaintPanel()
         {
+            EditorGUILayout.HelpBox(
+                "Paint mode edits explicit baked blades directly. Use it for touch-ups after generation.",
+                MessageType.Info);
+
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Paint Mode:", EditorStyles.boldLabel);
             paintModeActive = EditorGUILayout.Toggle(paintModeActive);
@@ -139,12 +144,10 @@ namespace Grass.Editor
             EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField("Hit Settings", EditorStyles.boldLabel);
-            paintHitMask = EditorGUILayout.MaskField("Paint Hit Mask",
-                InternalEditorUtility.LayerMaskToConcatenatedLayersMask(paintHitMask),
-                InternalEditorUtility.layers);
+            paintHitMask = DrawLayerMaskField("Paint Hit Mask", paintHitMask);
 
             EditorGUILayout.Separator();
-            EditorGUILayout.LabelField("Paint Status (Right-Mouse Button to paint)", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Brush Action (hold Right Mouse in Scene View)", EditorStyles.boldLabel);
             toolbarInt = GUILayout.Toolbar(toolbarInt, toolbarStrings);
 
             EditorGUILayout.Separator();
@@ -161,31 +164,50 @@ namespace Grass.Editor
 
         private void ShowGeneratePanel()
         {
-            cullGrassMask = EditorGUILayout.MaskField("Cull Mask",
-                cullGrassMask,
-                UnityEditorInternal.InternalEditorUtility.layers);
+            EditorGUILayout.LabelField("Generate From Selection", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Select one or more Terrains/Meshes or a parent containing them. Generation bakes exact blade positions, normals, lightmap UVs, and selected variant indices.",
+                MessageType.Info);
+
+            int selectedCount = Selection.gameObjects?.Length ?? 0;
+            EditorGUILayout.LabelField("Selected Objects", selectedCount.ToString());
+
+            cullGrassMask = DrawLayerMaskField("Obstacle Mask", cullGrassMask);
+            EditorGUILayout.HelpBox(
+                "Obstacle Mask removes generated blades overlapping those layers. Do not include the terrain/ground layer unless you intentionally want to reject grass there.",
+                MessageType.None);
 
             grassHolderObject ??= FindFirstObjectByType<GrassHolder>()?.gameObject;
 
             if (grassHolderObject != null)
             {
                 EditorGUILayout.Space(5);
-                _grassHolder.normalLimit = EditorGUILayout.Slider("Slope Limit", _grassHolder.normalLimit, 0f, 1f);
+                _grassHolder.normalLimit = EditorGUILayout.Slider(
+                    new GUIContent("Slope Tolerance", "0 only accepts nearly flat upward surfaces. 1 accepts any upward-facing surface."),
+                    _grassHolder.normalLimit, 0f, 1f);
 
                 EditorGUILayout.Space(5);
-                grassCount = EditorGUILayout.IntField("Count Grass per Mesh", grassCount);
+                grassCount = Mathf.Max(0, EditorGUILayout.IntField(
+                    new GUIContent("Blades per Target", "Each selected Terrain/Mesh receives this many generated blade candidates."),
+                    grassCount));
+                clearBeforeGenerate = EditorGUILayout.Toggle(
+                    new GUIContent("Replace Existing Grass", "Clear current baked blades before generating."),
+                    clearBeforeGenerate);
 
                 EditorGUILayout.Space(10);
 
-                // Info about material configuration
+                if (_grassHolder.materialSystem == null || !_grassHolder.materialSystem.IsValid())
+                {
+                    EditorGUILayout.HelpBox("No valid grass variants are configured on the Grass Holder.", MessageType.Warning);
+                }
+
                 EditorGUILayout.HelpBox(
-                    "To configure materials, grass/flower groups, clustering, and other settings:\n" +
-                    "Select the GrassHolder object in the hierarchy and edit its Material System in the inspector.",
+                    "Variant/material and flower patch controls live on the Grass Holder inspector. Generation bakes those choices into the .grassdata asset.",
                     MessageType.Info);
 
                 EditorGUILayout.Space(10);
                 
-                if (GUILayout.Button("Generate Grass"))
+                if (GUILayout.Button("Generate Selected Surfaces", GUILayout.Height(32)))
                 {
                     GameObject[] selectedObjects = Selection.gameObjects;
                     if (selectedObjects == null || selectedObjects.Length == 0)
@@ -196,6 +218,9 @@ namespace Grass.Editor
 
                     int successCount = 0;
                     int failCount = 0;
+
+                    if (clearBeforeGenerate)
+                        _grassHolder.PrepareForRegeneration();
 
                     foreach (var obj in selectedObjects)
                     {
@@ -271,7 +296,7 @@ namespace Grass.Editor
                     }
                     
                     if (GrassDataManager.TrySaveGrassData(_grassHolder))
-                        Debug.Log("Grass Data Saved");
+                        Debug.Log($"Grass generated on {successCount} target(s), {failCount} failed. Grass data saved.");
                     else
                         Debug.LogError("Grass Data Not Saved");
                 }
@@ -293,6 +318,13 @@ namespace Grass.Editor
             grassHolderObject.name = "Grass Holder";
             grassHolderObject.layer = LayerMask.NameToLayer("Grass");
             _grassHolder = grassHolderObject.AddComponent<GrassHolder>();
+        }
+
+        private static LayerMask DrawLayerMaskField(string label, LayerMask layerMask)
+        {
+            int concatenatedMask = InternalEditorUtility.LayerMaskToConcatenatedLayersMask(layerMask);
+            int newConcatenatedMask = EditorGUILayout.MaskField(label, concatenatedMask, InternalEditorUtility.layers);
+            return InternalEditorUtility.ConcatenatedLayersMaskToLayerMask(newConcatenatedMask);
         }
 
         private void OnSceneGUI(SceneView sceneView)

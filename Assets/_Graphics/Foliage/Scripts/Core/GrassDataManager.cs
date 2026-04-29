@@ -86,9 +86,7 @@ namespace Grass.Core
         {
             try
             {
-                grassHolder.OnDisable();
-                grassHolder.grassData.Clear();
-                grassHolder.ClearRuntimeData();
+                grassHolder.PrepareForRegeneration();
                 grassHolder.SetGrassClearedFlag(true);
                 return true;
             }

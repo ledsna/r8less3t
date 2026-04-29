@@ -1,13 +1,5 @@
 #pragma kernel CullAndCompact
 
-struct GrassData
-{
-    float3 position;
-    float3 normal;
-    float2 lightmapUV;
-    int materialIndex;
-};
-
 struct ChunkData
 {
     float3 center;
@@ -24,10 +16,9 @@ struct RangeData
     int padding;
 };
 
-StructuredBuffer<GrassData> _AllGrassInstances;
 StructuredBuffer<ChunkData> _Chunks;
 StructuredBuffer<RangeData> _Ranges;
-AppendStructuredBuffer<GrassData> _VisibleGrass;
+AppendStructuredBuffer<uint> _VisibleInstanceIndices;
 
 float4 _FrustumPlanes[6];
 float3 _CameraPosition;
@@ -83,8 +74,8 @@ void CullAndCompact(uint3 id : SV_DispatchThreadID)
         if (range.materialIndex != _MaterialIndex)
             continue;
 
-        int endInstance = range.startInstance + range.instanceCount;
-        for (int instanceIndex = range.startInstance; instanceIndex < endInstance; instanceIndex++)
-            _VisibleGrass.Append(_AllGrassInstances[instanceIndex]);
+        uint endInstance = (uint)(range.startInstance + range.instanceCount);
+        for (uint instanceIndex = (uint)range.startInstance; instanceIndex < endInstance; instanceIndex++)
+            _VisibleInstanceIndices.Append(instanceIndex);
     }
 }

@@ -138,6 +138,8 @@ struct Varyings
     half4 tangentWS                : TEXCOORD3;    // xyz: tangent, w: sign
 #endif
 
+    nointerpolation int textureIndex : TEXCOORD4;
+
     half  fogFactor                 : TEXCOORD5;
 
 #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
@@ -335,6 +337,7 @@ Varyings LitPassVertex(Attributes input)
     half fogFactor = ComputeFogFactor(vertexInput.positionCS.z);
 
     output.uv = input.texcoord;
+    output.textureIndex = textureIndex;
 
     // Use the perturbed normal from the underlying mesh (already in WS)
     output.normalWS = normalize(perturbedNormal);
@@ -385,7 +388,7 @@ void LitPassFragment(
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-    half4 textureColor = SampleTextureArray(input.uv, textureIndex);
+    half4 textureColor = SampleTextureArray(input.uv, input.textureIndex);
 
     // Billboard sprites must always clip depth/object-ID to their opaque silhouette.
     clip(textureColor.a - _Cutoff);

@@ -8,9 +8,11 @@ struct GrassData
 };
 
 StructuredBuffer<GrassData> _SourcePositionGrass;
+StructuredBuffer<uint> _VisibleInstanceIndices;
 
 float _Scale;
 float _WildGrassChance;
+float _UseVisibleInstanceIndices;
 // Inputs
 float4x4 m_RS;
 // Globals
@@ -38,7 +40,8 @@ void Setup()
 {
     #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
     InitIndirectDrawArgs(0);
-    uint instanceID = GetIndirectInstanceID_Base(unity_InstanceID);
+    uint indirectInstanceID = GetIndirectInstanceID_Base(unity_InstanceID);
+    uint instanceID = _UseVisibleInstanceIndices > 0.5 ? _VisibleInstanceIndices[indirectInstanceID] : indirectInstanceID;
     GrassData instanceData = _SourcePositionGrass[instanceID];
 
     normalWS = instanceData.normal;
