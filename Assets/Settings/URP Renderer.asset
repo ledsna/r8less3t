@@ -89,7 +89,7 @@ MonoBehaviour:
     Radius: 1
     Samples: 0
     BlurQuality: 0
-    Falloff: 1000
+    Falloff: 100
     SampleCount: -1
 --- !u!114 &-1395698828817776804
 MonoBehaviour:
@@ -103,7 +103,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0a09e9b48a42946a78b866638db51d87, type: 3}
   m_Name: SSRPrepassFeature
   m_EditorClassIdentifier: Features::Ledsna.SSR.SSRPrepassFeature
-  m_Active: 0
+  m_Active: 1
   settings:
     waterLayer:
       serializedVersion: 2
@@ -145,7 +145,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aee646932b744b7e9f8df520e52c051b, type: 3}
   m_Name: VolumetricFogFeature
   m_EditorClassIdentifier: VolumetricFog.Core::VolumetricFog.Core.VolumetricFogFeature
-  m_Active: 0
+  m_Active: 1
   VolumetricFogShader: {fileID: 4800000, guid: 02b530bd2bbb4092a6b4061f697723cd, type: 3}
   ShapeTexture: {fileID: 11700000, guid: 017952c84bd768942aa40adaebc89625, type: 2}
   DetailTexture: {fileID: 11700000, guid: 4e284fbabf836e44ab64409b9131d99f, type: 2}

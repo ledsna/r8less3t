@@ -27,7 +27,7 @@ MonoBehaviour:
     m_Value: {x: 0, y: 0, z: 0}
   densityOffset:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: -1
   densityMultiplier:
     m_OverrideState: 1
     m_Value: 2
@@ -75,7 +75,7 @@ MonoBehaviour:
     m_Value: 1
   maxPointLights:
     m_OverrideState: 1
-    m_Value: 8
+    m_Value: 2
   pointLightExtraSamples:
     m_OverrideState: 1
     m_Value: 1
@@ -83,16 +83,16 @@ MonoBehaviour:
     m_OverrideState: 1
     m_Value: 0.01
   maxStepSize:
-    m_OverrideState: 0
-    m_Value: 100
-  edgeFadeDistance:
     m_OverrideState: 1
+    m_Value: 4
+  edgeFadeDistance:
+    m_OverrideState: 0
     m_Value: 5
   topFadeStrength:
-    m_OverrideState: 1
+    m_OverrideState: 0
     m_Value: 1
   verticalFadeMultiplier:
-    m_OverrideState: 1
+    m_OverrideState: 0
     m_Value: 2
   fogColor:
     m_OverrideState: 1

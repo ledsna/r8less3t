@@ -140,15 +140,15 @@ void DepthNormalsFragment(
     half4 clipSample = SampleTextureArray(input.uv, input.textureIndex);
     clip(clipSample.a - _Cutoff);
 
-    #if defined(_GBUFFER_NORMALS_OCT)
-        float3 normalWS = normalize(input.normalWS);
-        float2 octNormalWS = PackNormalOctQuadEncode(normalWS);
-        float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);
-        half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);
-        outNormalWS = half4(packedNormalWS, 0.0);
-    #else
+    // #if defined(_GBUFFER_NORMALS_OCT)
+    //     float3 normalWS = normalize(input.normalWS);
+    //     float2 octNormalWS = PackNormalOctQuadEncode(normalWS);
+    //     float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);
+    //     half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);
+    //     outNormalWS = half4(packedNormalWS, 0.0);
+    // #else
         outNormalWS = half4(NormalizeNormalPerPixel(input.normalWS), _Smoothness);
-    #endif
+    // #endif
 
     #ifdef _WRITE_OBJECT_ID
         // Grass has no Renderer, so _InstancedBaseID replaces unity_RendererUserValue.

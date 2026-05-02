@@ -107,7 +107,7 @@ half3 LightingPhysicallyBased(BRDFData brdfData,
     float dither = 0;
 
     #if defined(IS_BILLBOARD)
-        dither = Unity_Dither(0.5, float4(normalizedScreenSpaceUV * float2(1.0, 0.5), 0, 0));
+        dither = Unity_Dither(0.5, float4(normalizedScreenSpaceUV * float2(1.0, 1.0), 0, 0));
     #endif
 
     half qNdotL = Quantize(steps, NdotL + dither / 2 / steps);
@@ -355,7 +355,7 @@ half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData, out hal
 
         half billboardOffset = 0;
         #if defined(IS_BILLBOARD)
-            billboardOffset = Unity_Dither(0.5, float4(inputData.normalizedScreenSpaceUV * float2(1.0, 0.5), 0, 0)) / 4 / _FresnelSteps;
+            billboardOffset = Unity_Dither(0.5, float4(inputData.normalizedScreenSpaceUV * float2(1.0, 1.0), 0, 0)) / 4 / _FresnelSteps;
         #endif
         half fresnelTerm = Pow4(1.0 - saturate(Quantize(_FresnelSteps, NoV + billboardOffset)));
 

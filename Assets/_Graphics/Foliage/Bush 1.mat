@@ -12,6 +12,8 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
+  - DIRLIGHTMAP_COMBINED
+  - LIGHTMAP_ON
   - SHADOWS_SHADOWMASK
   - _ALPHATEST_ON
   - _SPECULAR_SETUP
@@ -145,7 +147,7 @@ Material:
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
-    - _External: 1
+    - _External: 0
     - _ExternalScale: 1
     - _FlowerCameraNudge: 0.03
     - _FlowerSizeMultiplier: 1.25
